@@ -1408,6 +1408,9 @@ config ARM64_PAN
 config AS_HAS_LSE_ATOMICS
 	def_bool $(as-instr,.arch_extension lse)
 
+config AS_HAS_LDAPR
+	def_bool $(as-instr,.arch_extension rcpc)
+
 config ARM64_LSE_ATOMICS
 	bool
 	default ARM64_USE_LSE_ATOMICS
