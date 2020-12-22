@@ -70,6 +70,7 @@
 #include <linux/types.h>
 #include <linux/mm.h>
 #include <linux/cpu.h>
+#include <linux/kasan.h>
 #include <asm/cpu.h>
 #include <asm/cpufeature.h>
 #include <asm/cpu_ops.h>
@@ -1549,6 +1550,8 @@ static void cpu_amu_enable(struct arm64_cpu_capabilities const *cap)
 		cpumask_set_cpu(smp_processor_id(), &amu_cpus);
 		init_cpu_freq_invariance_counters();
 	}
+
+	kasan_init_hw_tags_cpu();
 }
 
 static bool has_amu(const struct arm64_cpu_capabilities *cap,
