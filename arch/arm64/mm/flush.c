@@ -17,14 +17,14 @@
 void sync_icache_aliases(unsigned long start, unsigned long end)
 {
 	if (icache_is_aliasing()) {
-		__clean_dcache_area_pou(start, end);
-		__flush_icache_all();
+		dcache_clean_pou(start, end);
+		icache_inval_all_pou();
 	} else {
 		/*
 		 * Don't issue kick_all_cpus_sync() after I-cache invalidation
 		 * for user mappings.
 		 */
-		__flush_icache_range(start, end);
+		caches_clean_inval_pou(start, end);
 	}
 }
 
@@ -76,22 +76,22 @@ EXPORT_SYMBOL(flush_dcache_page);
 /*
  * Additional functions defined in assembly.
  */
-EXPORT_SYMBOL(__flush_icache_range);
-EXPORT_SYMBOL(__flush_dcache_area);
+EXPORT_SYMBOL(caches_clean_inval_pou);
+EXPORT_SYMBOL(dcache_clean_inval_poc);
 
 #ifdef CONFIG_ARCH_HAS_PMEM_API
 void arch_wb_cache_pmem(void *addr, size_t size)
 {
 	/* Ensure order against any prior non-cacheable writes */
 	dmb(osh);
-	__clean_dcache_area_pop((unsigned long)addr, (unsigned long)addr + size);
+	dcache_clean_pop((unsigned long)addr, (unsigned long)addr + size);
 }
 EXPORT_SYMBOL_GPL(arch_wb_cache_pmem);
 
 void arch_invalidate_pmem(void *addr, size_t size)
 {
-	__inval_dcache_area((unsigned long)addr, (unsigned long)addr + size);
+	dcache_inval_poc((unsigned long)addr, (unsigned long)addr + size);
 }
 EXPORT_SYMBOL_GPL(arch_invalidate_pmem);
 #endif
-EXPORT_SYMBOL(__clean_dcache_area_poc);
+EXPORT_SYMBOL(dcache_clean_poc);
