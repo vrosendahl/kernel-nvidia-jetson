@@ -27,6 +27,7 @@
 #include <linux/netdevice.h>
 #include <linux/sched/signal.h>
 #include <linux/sched/mm.h>
+#include <linux/swiotlb.h>
 #include <linux/sysfs.h>
 
 #include "base.h"
@@ -1230,6 +1231,9 @@ static void __device_links_no_driver(struct device *dev)
 	}
 
 	dev->links.status = DL_DEV_NO_DRIVER;
+#ifdef CONFIG_SWIOTLB
+	dev->dma_io_tlb_mem = io_tlb_default_mem;
+#endif
 }
 
 /**
