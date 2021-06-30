@@ -36,6 +36,7 @@
 #include <linux/overflow.h>
 
 #include <linux/uaccess.h>
+#include <linux/io.h>
 #include <asm/tlbflush.h>
 #include <asm/shmparam.h>
 
@@ -68,7 +69,6 @@ static void free_work(struct work_struct *w)
 }
 
 /*** Page table manipulation functions ***/
-
 static void vunmap_pte_range(pmd_t *pmd, unsigned long addr, unsigned long end,
 			     pgtbl_mod_mask *mask)
 {
@@ -2259,6 +2259,10 @@ static void __vunmap(const void *addr, int deallocate_pages)
 	debug_check_no_obj_freed(area->addr, get_vm_area_size(area));
 
 	kasan_poison_vmalloc(area->addr, get_vm_area_size(area));
+
+	if (IS_ENABLED(CONFIG_ARCH_HAS_IOREMAP_PHYS_HOOKS) &&
+	    area->flags & VM_IOREMAP)
+		iounmap_phys_range_hook(area->phys_addr, get_vm_area_size(area));
 
 	vm_remove_mappings(area, deallocate_pages);
 
