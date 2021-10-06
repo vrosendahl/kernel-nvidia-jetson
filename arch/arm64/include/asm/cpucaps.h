@@ -71,7 +71,8 @@
 #define ARM64_HAS_LDAPR				60
 #define ARM64_KVM_PROTECTED_MODE		61
 #define ARM64_WORKAROUND_TSB_FLUSH_FAILURE	62
+#define ARM64_MTE_ASYMM			        63
 
-#define ARM64_NCAPS				63
+#define ARM64_NCAPS				64
 
 #endif /* __ASM_CPUCAPS_H */
