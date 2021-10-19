@@ -116,6 +116,11 @@ struct debug_info {
 #endif
 };
 
+enum vec_type {
+	ARM64_VEC_SVE = 0,
+	ARM64_VEC_MAX,
+};
+
 struct cpu_context {
 	unsigned long x19;
 	unsigned long x20;
