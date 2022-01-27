@@ -11,6 +11,7 @@
 
 #include <linux/static_key.h>
 
+DECLARE_STATIC_KEY_TRUE(kasan_flag_vmalloc);
 DECLARE_STATIC_KEY_TRUE(kasan_flag_stacktrace);
 
 enum kasan_mode {
@@ -20,6 +21,11 @@ enum kasan_mode {
 };
 
 extern enum kasan_mode kasan_mode __ro_after_init;
+
+static inline bool kasan_vmalloc_enabled(void)
+{
+	return static_branch_likely(&kasan_flag_vmalloc);
+}
 
 static inline bool kasan_stack_collection_enabled(void)
 {
