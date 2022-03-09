@@ -145,12 +145,19 @@ preferred mode for each CPU is ``async``.
 To allow a program to potentially run in the CPU's preferred tag
 checking mode, the user program may set multiple tag check fault mode
 bits in the ``flags`` argument to the ``prctl(PR_SET_TAGGED_ADDR_CTRL,
-flags, 0, 0, 0)`` system call. If the CPU's preferred tag checking
-mode is in the task's set of provided tag checking modes (this will
-always be the case at present because the kernel only supports two
-tag checking modes, but future kernels may support more modes), that
-mode will be selected. Otherwise, one of the modes in the task's mode
-set will be selected in a currently unspecified manner.
+flags, 0, 0, 0)`` system call. If both synchronous and asynchronous
+modes are requested then asymmetric mode may also be selected by the
+kernel. If the CPU's preferred tag checking mode is in the task's set
+of provided tag checking modes, that mode will be selected. Otherwise,
+one of the modes in the task's mode will be selected by the kernel
+from the task's mode set using the preference order:
+
+ 	1. Asynchronous
+ 	2. Asymmetric
+ 	3. Synchronous
+
+Note that there is no way for userspace to request multiple modes and
+also disable asymmetric mode.
 
 Initial process state
 ---------------------
