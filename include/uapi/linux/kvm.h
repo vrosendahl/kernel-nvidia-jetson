@@ -434,6 +434,7 @@ struct kvm_run {
 #define KVM_SYSTEM_EVENT_RESET          2
 #define KVM_SYSTEM_EVENT_CRASH          3
 #define KVM_SYSTEM_EVENT_WAKEUP         4
+#define KVM_SYSTEM_EVENT_SUSPEND        5
 			__u32 type;
 			__u64 flags;
 		} system_event;
@@ -1125,6 +1126,18 @@ struct kvm_ppc_resize_hpt {
 #define KVM_CAP_XSAVE2 208
 #define KVM_CAP_SYS_ATTRIBUTES 209
 #define KVM_CAP_S390_MEM_OP_EXTENSION 211
+#if 0
+/* Defined upstream but not backported to this kernel. */
+/*
+ * I am not sure wheter we should enable these or not, since they are not
+ * in Android, we don't enable them now when patching for pkvm
+ */
+#define KVM_CAP_PMU_CAPABILITY 212
+#define KVM_CAP_DISABLE_QUIRKS2 213
+/* #define KVM_CAP_VM_TSC_CONTROL 214 */
+#define KVM_CAP_SYSTEM_EVENT_DATA 215
+#endif
+#define KVM_CAP_ARM_SYSTEM_SUSPEND 216
 #define KVM_CAP_S390_ZPCI_OP 221
 
 #ifdef KVM_CAP_IRQ_ROUTING
