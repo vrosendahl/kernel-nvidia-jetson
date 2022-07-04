@@ -2338,7 +2338,7 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.sign = FTR_UNSIGNED,
 		.field_pos = ID_AA64ISAR1_APA_SHIFT,
 		.field_width = 4,
-		.min_field_value = ID_AA64ISAR1_APA_ARCHITECTED,
+		.min_field_value = ID_AA64ISAR1_APA_PAuth,
 		.matches = has_address_auth_cpucap,
 	},
 	{
@@ -2349,7 +2349,7 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.sign = FTR_UNSIGNED,
 		.field_pos = ID_AA64ISAR2_APA3_SHIFT,
 		.field_width = 4,
-		.min_field_value = ID_AA64ISAR2_APA3_ARCHITECTED,
+		.min_field_value = ID_AA64ISAR2_APA3_PAuth,
 		.matches = has_address_auth_cpucap,
 	},
 	{
@@ -2360,7 +2360,7 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.sign = FTR_UNSIGNED,
 		.field_pos = ID_AA64ISAR1_API_SHIFT,
 		.field_width = 4,
-		.min_field_value = ID_AA64ISAR1_API_IMP_DEF,
+		.min_field_value = ID_AA64ISAR1_API_PAuth,
 		.matches = has_address_auth_cpucap,
 	},
 	{
@@ -2376,7 +2376,7 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.sign = FTR_UNSIGNED,
 		.field_pos = ID_AA64ISAR1_GPA_SHIFT,
 		.field_width = 4,
-		.min_field_value = ID_AA64ISAR1_GPA_ARCHITECTED,
+		.min_field_value = ID_AA64ISAR1_GPA_IMP,
 		.matches = has_cpuid_feature,
 	},
 	{
@@ -2387,7 +2387,7 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.sign = FTR_UNSIGNED,
 		.field_pos = ID_AA64ISAR2_GPA3_SHIFT,
 		.field_width = 4,
-		.min_field_value = ID_AA64ISAR2_GPA3_ARCHITECTED,
+		.min_field_value = ID_AA64ISAR2_GPA3_IMP,
 		.matches = has_cpuid_feature,
 	},
 	{
@@ -2398,7 +2398,7 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.sign = FTR_UNSIGNED,
 		.field_pos = ID_AA64ISAR1_GPI_SHIFT,
 		.field_width = 4,
-		.min_field_value = ID_AA64ISAR1_GPI_IMP_DEF,
+		.min_field_value = ID_AA64ISAR1_GPI_IMP,
 		.matches = has_cpuid_feature,
 	},
 	{
@@ -2583,15 +2583,15 @@ static const struct arm64_cpu_capabilities ptr_auth_hwcap_addr_matches[] = {
 	{
 		HWCAP_CPUID_MATCH(SYS_ID_AA64ISAR1_EL1, ID_AA64ISAR1_APA_SHIFT,
 				  4, FTR_UNSIGNED,
-				  ID_AA64ISAR1_APA_ARCHITECTED)
+				  ID_AA64ISAR1_APA_PAuth)
 	},
 	{
 		HWCAP_CPUID_MATCH(SYS_ID_AA64ISAR2_EL1, ID_AA64ISAR2_APA3_SHIFT,
-				  4, FTR_UNSIGNED, ID_AA64ISAR2_APA3_ARCHITECTED)
+				  4, FTR_UNSIGNED, ID_AA64ISAR2_APA3_PAuth)
 	},
 	{
 		HWCAP_CPUID_MATCH(SYS_ID_AA64ISAR1_EL1, ID_AA64ISAR1_API_SHIFT,
-				  4, FTR_UNSIGNED, ID_AA64ISAR1_API_IMP_DEF)
+				  4, FTR_UNSIGNED, ID_AA64ISAR1_API_PAuth)
 	},
 	{},
 };
@@ -2599,15 +2599,15 @@ static const struct arm64_cpu_capabilities ptr_auth_hwcap_addr_matches[] = {
 static const struct arm64_cpu_capabilities ptr_auth_hwcap_gen_matches[] = {
 	{
 		HWCAP_CPUID_MATCH(SYS_ID_AA64ISAR1_EL1, ID_AA64ISAR1_GPA_SHIFT,
-				  4, FTR_UNSIGNED, ID_AA64ISAR1_GPA_ARCHITECTED)
+				  4, FTR_UNSIGNED, ID_AA64ISAR1_GPA_IMP)
 	},
 	{
 		HWCAP_CPUID_MATCH(SYS_ID_AA64ISAR2_EL1, ID_AA64ISAR2_GPA3_SHIFT,
-				  4, FTR_UNSIGNED, ID_AA64ISAR2_GPA3_ARCHITECTED)
+				  4, FTR_UNSIGNED, ID_AA64ISAR2_GPA3_IMP)
 	},
 	{
 		HWCAP_CPUID_MATCH(SYS_ID_AA64ISAR1_EL1, ID_AA64ISAR1_GPI_SHIFT,
-				  4, FTR_UNSIGNED, ID_AA64ISAR1_GPI_IMP_DEF)
+				  4, FTR_UNSIGNED, ID_AA64ISAR1_GPI_IMP)
 	},
 	{},
 };
