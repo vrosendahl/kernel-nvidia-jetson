@@ -1,0 +1,1224 @@
+caab277b1de0a (Thomas Gleixner        2019-06-03 07:44:50 +0200    1) /* SPDX-License-Identifier: GPL-2.0-only */
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000    2) /*
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000    3)  * Copyright (C) 2012,2013 - ARM Ltd
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000    4)  * Author: Marc Zyngier <marc.zyngier@arm.com>
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000    5)  *
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000    6)  * Derived from arch/arm/include/asm/kvm_host.h:
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000    7)  * Copyright (C) 2012 - Virtual Open Systems and Columbia University
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000    8)  * Author: Christoffer Dall <c.dall@virtualopensystems.com>
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000    9)  */
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000   10) 
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000   11) #ifndef __ARM64_KVM_HOST_H__
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000   12) #define __ARM64_KVM_HOST_H__
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000   13) 
+054698316d87a (Andrew Scull           2020-09-15 11:46:41 +0100   14) #include <linux/arm-smccc.h>
+3f61f40947e88 (Dave Martin            2018-09-28 14:39:08 +0100   15) #include <linux/bitmap.h>
+656473003bc7e (Paolo Bonzini          2014-08-29 14:01:17 +0200   16) #include <linux/types.h>
+3f61f40947e88 (Dave Martin            2018-09-28 14:39:08 +0100   17) #include <linux/jump_label.h>
+656473003bc7e (Paolo Bonzini          2014-08-29 14:01:17 +0200   18) #include <linux/kvm_types.h>
+fb88707dd39bd (Oliver Upton           2023-04-04 15:40:44 +0000   19) #include <linux/maple_tree.h>
+3f61f40947e88 (Dave Martin            2018-09-28 14:39:08 +0100   20) #include <linux/percpu.h>
+ff367fe473a98 (David Brazdil          2020-12-08 14:24:47 +0000   21) #include <linux/psci.h>
+85738e05dc38a (Julien Thierry         2019-01-31 14:58:48 +0000   22) #include <asm/arch_gicv3.h>
+3f61f40947e88 (Dave Martin            2018-09-28 14:39:08 +0100   23) #include <asm/barrier.h>
+63a1e1c95e60e (Mark Rutland           2017-05-16 15:18:05 +0100   24) #include <asm/cpufeature.h>
+1e0cf16cdad1b (Marc Zyngier           2019-07-05 23:35:56 +0100   25) #include <asm/cputype.h>
+4f5abad9e826b (James Morse            2018-01-15 19:39:00 +0000   26) #include <asm/daifflags.h>
+17eed27b02da8 (Dave Martin            2017-10-31 15:51:16 +0000   27) #include <asm/fpsimd.h>
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000   28) #include <asm/kvm.h>
+3a3604bc5eb4a (Marc Zyngier           2015-01-29 13:19:45 +0000   29) #include <asm/kvm_asm.h>
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000   30) 
+c1426e4c5add0 (Eric Auger             2015-03-04 11:14:34 +0100   31) #define __KVM_HAVE_ARCH_INTC_INITIALIZED
+c1426e4c5add0 (Eric Auger             2015-03-04 11:14:34 +0100   32) 
+920552b213e3d (David Hildenbrand      2015-09-18 12:34:53 +0200   33) #define KVM_HALT_POLL_NS_DEFAULT 500000
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000   34) 
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000   35) #include <kvm/arm_vgic.h>
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000   36) #include <kvm/arm_arch_timer.h>
+04fe472615d02 (Shannon Zhao           2015-09-11 09:38:32 +0800   37) #include <kvm/arm_pmu.h>
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000   38) 
+ef748917b5298 (Ming Lei               2015-09-02 14:31:21 +0800   39) #define KVM_MAX_VCPUS VGIC_V3_MAX_CPUS
+ef748917b5298 (Ming Lei               2015-09-02 14:31:21 +0800   40) 
+a22fa321d13b0 (Amit Daniel Kachhap    2019-04-23 10:12:36 +0530   41) #define KVM_VCPU_MAX_FEATURES 7
+a7a2c72ae0148 (Oliver Upton           2023-06-09 19:00:44 +0000   42) #define KVM_VCPU_VALID_FEATURES	(BIT(KVM_VCPU_MAX_FEATURES) - 1)
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000   43) 
+7b244e2be654d (Andrew Jones           2017-06-04 14:43:58 +0200   44) #define KVM_REQ_SLEEP \
+2387149eade25 (Andrew Jones           2017-06-04 14:43:51 +0200   45) 	KVM_ARCH_REQ_FLAGS(0, KVM_REQUEST_WAIT | KVM_REQUEST_NO_WAKEUP)
+325f9c649c8a4 (Andrew Jones           2017-06-04 14:43:59 +0200   46) #define KVM_REQ_IRQ_PENDING	KVM_ARCH_REQ(1)
+358b28f09f0ab (Marc Zyngier           2018-12-20 11:36:07 +0000   47) #define KVM_REQ_VCPU_RESET	KVM_ARCH_REQ(2)
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100   48) #define KVM_REQ_RECORD_STEAL	KVM_ARCH_REQ(3)
+d9c3872cd2f86 (Marc Zyngier           2020-03-04 20:33:28 +0000   49) #define KVM_REQ_RELOAD_GICv4	KVM_ARCH_REQ(4)
+d0c94c49792cf (Marc Zyngier           2021-06-03 16:50:02 +0100   50) #define KVM_REQ_RELOAD_PMU	KVM_ARCH_REQ(5)
+7b33a09d036ff (Oliver Upton           2022-05-04 03:24:40 +0000   51) #define KVM_REQ_SUSPEND		KVM_ARCH_REQ(6)
+b1f778a223a2a (Marc Zyngier           2023-08-20 10:01:08 +0100   52) #define KVM_REQ_RESYNC_PMU_EL0	KVM_ARCH_REQ(7)
+b13216cf6010e (Christoffer Dall       2016-04-27 10:28:00 +0100   53) 
+c862626e19efd (Keqian Zhu             2020-04-13 20:20:23 +0800   54) #define KVM_DIRTY_LOG_MANUAL_CAPS   (KVM_DIRTY_LOG_MANUAL_PROTECT_ENABLE | \
+c862626e19efd (Keqian Zhu             2020-04-13 20:20:23 +0800   55) 				     KVM_DIRTY_LOG_INITIALLY_SET)
+c862626e19efd (Keqian Zhu             2020-04-13 20:20:23 +0800   56) 
+fcc5bf89635a0 (Jing Zhang             2022-01-18 01:57:01 +0000   57) #define KVM_HAVE_MMU_RWLOCK
+fcc5bf89635a0 (Jing Zhang             2022-01-18 01:57:01 +0000   58) 
+d8b369c4e3143 (David Brazdil          2020-12-02 18:40:57 +0000   59) /*
+d8b369c4e3143 (David Brazdil          2020-12-02 18:40:57 +0000   60)  * Mode of operation configurable with kvm-arm.mode early param.
+d8b369c4e3143 (David Brazdil          2020-12-02 18:40:57 +0000   61)  * See Documentation/admin-guide/kernel-parameters.txt for more information.
+d8b369c4e3143 (David Brazdil          2020-12-02 18:40:57 +0000   62)  */
+d8b369c4e3143 (David Brazdil          2020-12-02 18:40:57 +0000   63) enum kvm_mode {
+d8b369c4e3143 (David Brazdil          2020-12-02 18:40:57 +0000   64) 	KVM_MODE_DEFAULT,
+d8b369c4e3143 (David Brazdil          2020-12-02 18:40:57 +0000   65) 	KVM_MODE_PROTECTED,
+675cabc899007 (Jintack Lim            2023-02-09 17:58:03 +0000   66) 	KVM_MODE_NV,
+b6a68b97af23c (Marc Zyngier           2021-10-01 18:05:53 +0100   67) 	KVM_MODE_NONE,
+d8b369c4e3143 (David Brazdil          2020-12-02 18:40:57 +0000   68) };
+675cabc899007 (Jintack Lim            2023-02-09 17:58:03 +0000   69) #ifdef CONFIG_KVM
+3eb681fba2bf8 (David Brazdil          2020-12-02 18:40:58 +0000   70) enum kvm_mode kvm_get_mode(void);
+675cabc899007 (Jintack Lim            2023-02-09 17:58:03 +0000   71) #else
+675cabc899007 (Jintack Lim            2023-02-09 17:58:03 +0000   72) static inline enum kvm_mode kvm_get_mode(void) { return KVM_MODE_NONE; };
+675cabc899007 (Jintack Lim            2023-02-09 17:58:03 +0000   73) #endif
+d8b369c4e3143 (David Brazdil          2020-12-02 18:40:57 +0000   74) 
+8d20bd6381670 (Sean Christopherson    2022-11-30 23:09:18 +0000   75) extern unsigned int __ro_after_init kvm_sve_max_vl;
+4f164d6961797 (Fuad Tabba             2023-03-15 15:53:11 +0000   76) extern unsigned int __ro_after_init kvm_host_sve_max_vl;
+8d20bd6381670 (Sean Christopherson    2022-11-30 23:09:18 +0000   77) int __init kvm_arm_init_sve(void);
+0f062bfe36b63 (Dave Martin            2019-02-28 18:33:00 +0000   78) 
+6b7982fefc1fd (Anshuman Khandual      2021-08-12 10:39:53 +0530   79) u32 __attribute_const__ kvm_target_cpu(void);
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000   80) int kvm_reset_vcpu(struct kvm_vcpu *vcpu);
+19bcc89eb8a9f (Sean Christopherson    2019-12-18 13:55:27 -0800   81) void kvm_arm_vcpu_destroy(struct kvm_vcpu *vcpu);
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000   82) 
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   83) struct kvm_hyp_memcache {
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   84) 	phys_addr_t head;
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   85) 	unsigned long nr_pages;
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   86) };
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   87) 
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   88) static inline void push_hyp_memcache(struct kvm_hyp_memcache *mc,
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   89) 				     phys_addr_t *p,
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   90) 				     phys_addr_t (*to_pa)(void *virt))
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   91) {
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   92) 	*p = mc->head;
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   93) 	mc->head = to_pa(p);
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   94) 	mc->nr_pages++;
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   95) }
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   96) 
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   97) static inline void *pop_hyp_memcache(struct kvm_hyp_memcache *mc,
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   98) 				     void *(*to_va)(phys_addr_t phys))
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000   99) {
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  100) 	phys_addr_t *p = to_va(mc->head);
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  101) 
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  102) 	if (!mc->nr_pages)
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  103) 		return NULL;
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  104) 
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  105) 	mc->head = *p;
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  106) 	mc->nr_pages--;
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  107) 
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  108) 	return p;
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  109) }
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  110) 
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  111) static inline int __topup_hyp_memcache(struct kvm_hyp_memcache *mc,
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  112) 				       unsigned long min_pages,
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  113) 				       void *(*alloc_fn)(void *arg),
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  114) 				       phys_addr_t (*to_pa)(void *virt),
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  115) 				       void *arg)
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  116) {
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  117) 	while (mc->nr_pages < min_pages) {
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  118) 		phys_addr_t *p = alloc_fn(arg);
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  119) 
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  120) 		if (!p)
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  121) 			return -ENOMEM;
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  122) 		push_hyp_memcache(mc, p, to_pa);
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  123) 	}
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  124) 
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  125) 	return 0;
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  126) }
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  127) 
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  128) static inline void __free_hyp_memcache(struct kvm_hyp_memcache *mc,
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  129) 				       void (*free_fn)(void *virt, void *arg),
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  130) 				       void *(*to_va)(phys_addr_t phys),
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  131) 				       void *arg)
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  132) {
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  133) 	while (mc->nr_pages)
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  134) 		free_fn(pop_hyp_memcache(mc, to_va), arg);
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  135) }
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  136) 
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  137) void free_hyp_memcache(struct kvm_hyp_memcache *mc);
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  138) int topup_hyp_memcache(struct kvm_hyp_memcache *mc, unsigned long min_pages);
+717a7eebac106 (Quentin Perret         2022-11-10 19:02:50 +0000  139) 
+e329fb75d519e (Christoffer Dall       2018-12-11 15:26:31 +0100  140) struct kvm_vmid {
+3248136b3637e (Julien Grall           2021-11-22 12:18:43 +0000  141) 	atomic64_t id;
+e329fb75d519e (Christoffer Dall       2018-12-11 15:26:31 +0100  142) };
+e329fb75d519e (Christoffer Dall       2018-12-11 15:26:31 +0100  143) 
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  144) struct kvm_s2_mmu {
+e329fb75d519e (Christoffer Dall       2018-12-11 15:26:31 +0100  145) 	struct kvm_vmid vmid;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  146) 
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  147) 	/*
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  148) 	 * stage2 entry level table
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  149) 	 *
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  150) 	 * Two kvm_s2_mmu structures in the same VM can point to the same
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  151) 	 * pgd here.  This happens when running a guest using a
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  152) 	 * translation regime that isn't affected by its own stage-2
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  153) 	 * translation, such as a non-VHE hypervisor running at vEL2, or
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  154) 	 * for vEL1/EL0 with vHCR_EL2.VM == 0.  In that case, we use the
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  155) 	 * canonical stage-2 page tables.
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  156) 	 */
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  157) 	phys_addr_t	pgd_phys;
+71233d05f4b5e (Will Deacon            2020-09-11 14:25:13 +0100  158) 	struct kvm_pgtable *pgt;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  159) 
+94d0e5980d679 (Marc Zyngier           2016-10-18 18:37:49 +0100  160) 	/* The last vcpu id that ran on each physical CPU */
+94d0e5980d679 (Marc Zyngier           2016-10-18 18:37:49 +0100  161) 	int __percpu *last_vcpu_ran;
+94d0e5980d679 (Marc Zyngier           2016-10-18 18:37:49 +0100  162) 
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  163) #define KVM_ARM_EAGER_SPLIT_CHUNK_SIZE_DEFAULT 0
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  164) 	/*
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  165) 	 * Memory cache used to split
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  166) 	 * KVM_CAP_ARM_EAGER_SPLIT_CHUNK_SIZE worth of huge pages. It
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  167) 	 * is used to allocate stage2 page tables while splitting huge
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  168) 	 * pages. The choice of KVM_CAP_ARM_EAGER_SPLIT_CHUNK_SIZE
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  169) 	 * influences both the capacity of the split page cache, and
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  170) 	 * how often KVM reschedules. Be wary of raising CHUNK_SIZE
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  171) 	 * too high.
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  172) 	 *
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  173) 	 * Protected by kvm->slots_lock.
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  174) 	 */
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  175) 	struct kvm_mmu_memory_cache split_page_cache;
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  176) 	uint64_t split_page_chunk_size;
+2f440b72e852b (Ricardo Koller         2023-04-26 17:23:23 +0000  177) 
+cfb1a98de7a9a (Quentin Perret         2021-03-19 10:01:28 +0000  178) 	struct kvm_arch *arch;
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  179) };
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  180) 
+8d14797b53f04 (Will Deacon            2020-11-18 19:44:00 +0000  181) struct kvm_arch_memory_slot {
+8d14797b53f04 (Will Deacon            2020-11-18 19:44:00 +0000  182) };
+8d14797b53f04 (Will Deacon            2020-11-18 19:44:00 +0000  183) 
+05714cab7d63b (Raghavendra Rao Ananta 2022-05-02 23:38:46 +0000  184) /**
+05714cab7d63b (Raghavendra Rao Ananta 2022-05-02 23:38:46 +0000  185)  * struct kvm_smccc_features: Descriptor of the hypercall services exposed to the guests
+05714cab7d63b (Raghavendra Rao Ananta 2022-05-02 23:38:46 +0000  186)  *
+05714cab7d63b (Raghavendra Rao Ananta 2022-05-02 23:38:46 +0000  187)  * @std_bmap: Bitmap of standard secure service calls
+428fd6788d4d0 (Raghavendra Rao Ananta 2022-05-02 23:38:47 +0000  188)  * @std_hyp_bmap: Bitmap of standard hypervisor service calls
+b22216e1a617c (Raghavendra Rao Ananta 2022-05-02 23:38:48 +0000  189)  * @vendor_hyp_bmap: Bitmap of vendor specific hypervisor service calls
+05714cab7d63b (Raghavendra Rao Ananta 2022-05-02 23:38:46 +0000  190)  */
+05714cab7d63b (Raghavendra Rao Ananta 2022-05-02 23:38:46 +0000  191) struct kvm_smccc_features {
+05714cab7d63b (Raghavendra Rao Ananta 2022-05-02 23:38:46 +0000  192) 	unsigned long std_bmap;
+428fd6788d4d0 (Raghavendra Rao Ananta 2022-05-02 23:38:47 +0000  193) 	unsigned long std_hyp_bmap;
+b22216e1a617c (Raghavendra Rao Ananta 2022-05-02 23:38:48 +0000  194) 	unsigned long vendor_hyp_bmap;
+05714cab7d63b (Raghavendra Rao Ananta 2022-05-02 23:38:46 +0000  195) };
+05714cab7d63b (Raghavendra Rao Ananta 2022-05-02 23:38:46 +0000  196) 
+b2e3108499711 (Will Deacon            2022-04-11 14:22:33 +0100  197) struct kvm_pinned_page {
+57dbdb76d1684 (Quentin Perret         2022-07-06 10:56:24 +0000  198) 	struct rb_node		node;
+b2e3108499711 (Will Deacon            2022-04-11 14:22:33 +0100  199) 	struct page		*page;
+57dbdb76d1684 (Quentin Perret         2022-07-06 10:56:24 +0000  200) 	u64			ipa;
+b2e3108499711 (Will Deacon            2022-04-11 14:22:33 +0100  201) };
+b2e3108499711 (Will Deacon            2022-04-11 14:22:33 +0100  202) 
+a1ec5c70d3f63 (Fuad Tabba             2022-11-10 19:02:45 +0000  203) typedef unsigned int pkvm_handle_t;
+a1ec5c70d3f63 (Fuad Tabba             2022-11-10 19:02:45 +0000  204) 
+9d0c063a4d1d1 (Fuad Tabba             2022-11-10 19:02:46 +0000  205) struct kvm_protected_vm {
+9d0c063a4d1d1 (Fuad Tabba             2022-11-10 19:02:46 +0000  206) 	pkvm_handle_t handle;
+f41dff4efb918 (Quentin Perret         2022-11-10 19:02:53 +0000  207) 	struct kvm_hyp_memcache teardown_mc;
+57dbdb76d1684 (Quentin Perret         2022-07-06 10:56:24 +0000  208) 	struct rb_root pinned_pages;
+9c2a2d24809e2 (Will Deacon            2021-12-09 11:59:38 +0000  209) 	gpa_t pvmfw_load_addr;
+db291ec44aaef (Marc Zyngier           2022-04-20 11:10:17 +0100  210) 	bool enabled;
+9d0c063a4d1d1 (Fuad Tabba             2022-11-10 19:02:46 +0000  211) };
+9d0c063a4d1d1 (Fuad Tabba             2022-11-10 19:02:46 +0000  212) 
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  213) struct kvm_arch {
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  214) 	struct kvm_s2_mmu mmu;
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  215) 
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  216) 	/* VTCR_EL2 value for this VM */
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  217) 	u64    vtcr;
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  218) 
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  219) 	/* Interrupt controller */
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  220) 	struct vgic_dist	vgic;
+85bd0ba1ff987 (Marc Zyngier           2018-01-21 16:42:56 +0000  221) 
+47053904e1828 (Marc Zyngier           2023-02-24 19:16:40 +0000  222) 	/* Timers */
+47053904e1828 (Marc Zyngier           2023-02-24 19:16:40 +0000  223) 	struct arch_timer_vm_data timer_data;
+47053904e1828 (Marc Zyngier           2023-02-24 19:16:40 +0000  224) 
+85bd0ba1ff987 (Marc Zyngier           2018-01-21 16:42:56 +0000  225) 	/* Mandated version of PSCI */
+85bd0ba1ff987 (Marc Zyngier           2018-01-21 16:42:56 +0000  226) 	u32 psci_version;
+c726200dd106d (Christoffer Dall       2019-10-11 13:07:05 +0200  227) 
+c43120afb5c66 (Oliver Upton           2023-03-27 16:47:45 +0000  228) 	/* Protects VM-scoped configuration data */
+c43120afb5c66 (Oliver Upton           2023-03-27 16:47:45 +0000  229) 	struct mutex config_lock;
+c43120afb5c66 (Oliver Upton           2023-03-27 16:47:45 +0000  230) 
+c726200dd106d (Christoffer Dall       2019-10-11 13:07:05 +0200  231) 	/*
+c726200dd106d (Christoffer Dall       2019-10-11 13:07:05 +0200  232) 	 * If we encounter a data abort without valid instruction syndrome
+c726200dd106d (Christoffer Dall       2019-10-11 13:07:05 +0200  233) 	 * information, report this to user space.  User space can (and
+c726200dd106d (Christoffer Dall       2019-10-11 13:07:05 +0200  234) 	 * should) opt in to this feature if KVM_CAP_ARM_NISV_TO_USER is
+c726200dd106d (Christoffer Dall       2019-10-11 13:07:05 +0200  235) 	 * supported.
+c726200dd106d (Christoffer Dall       2019-10-11 13:07:05 +0200  236) 	 */
+06394531b4257 (Marc Zyngier           2022-03-11 17:39:47 +0000  237) #define KVM_ARCH_FLAG_RETURN_NISV_IO_ABORT_TO_USER	0
+06394531b4257 (Marc Zyngier           2022-03-11 17:39:47 +0000  238) 	/* Memory Tagging Extension enabled for the guest */
+06394531b4257 (Marc Zyngier           2022-03-11 17:39:47 +0000  239) #define KVM_ARCH_FLAG_MTE_ENABLED			1
+06394531b4257 (Marc Zyngier           2022-03-11 17:39:47 +0000  240) 	/* At least one vCPU has ran in the VM */
+06394531b4257 (Marc Zyngier           2022-03-11 17:39:47 +0000  241) #define KVM_ARCH_FLAG_HAS_RAN_ONCE			2
+2251e9ff1573a (Oliver Upton           2023-06-09 19:00:46 +0000  242) 	/* The vCPU feature set for the VM is configured */
+2251e9ff1573a (Oliver Upton           2023-06-09 19:00:46 +0000  243) #define KVM_ARCH_FLAG_VCPU_FEATURES_CONFIGURED		3
+bfbab44568779 (Oliver Upton           2022-05-04 03:24:41 +0000  244) 	/* PSCI SYSTEM_SUSPEND enabled for the guest */
+2251e9ff1573a (Oliver Upton           2023-06-09 19:00:46 +0000  245) #define KVM_ARCH_FLAG_SYSTEM_SUSPEND_ENABLED		4
+30ec7997d175c (Marc Zyngier           2023-03-30 18:47:47 +0100  246) 	/* VM counter offset */
+2251e9ff1573a (Oliver Upton           2023-06-09 19:00:46 +0000  247) #define KVM_ARCH_FLAG_VM_COUNTER_OFFSET			5
+8a5eb2d210807 (Marc Zyngier           2023-03-30 18:47:51 +0100  248) 	/* Timer PPIs made immutable */
+2251e9ff1573a (Oliver Upton           2023-06-09 19:00:46 +0000  249) #define KVM_ARCH_FLAG_TIMER_PPIS_IMMUTABLE		6
+fb88707dd39bd (Oliver Upton           2023-04-04 15:40:44 +0000  250) 	/* SMCCC filter initialized for the VM */
+2251e9ff1573a (Oliver Upton           2023-06-09 19:00:46 +0000  251) #define KVM_ARCH_FLAG_SMCCC_FILTER_CONFIGURED		7
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  252) 	/* Initial ID reg values loaded */
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  253) #define KVM_ARCH_FLAG_ID_REGS_INITIALIZED		8
+abe08585b67bb (Marc Zyngier           2022-01-06 10:23:51 +0000  254) 	/* Guest has bought into the MMIO guard extension */
+abe08585b67bb (Marc Zyngier           2022-01-06 10:23:51 +0000  255) #define KVM_ARCH_FLAG_MMIO_GUARD			9
+06394531b4257 (Marc Zyngier           2022-03-11 17:39:47 +0000  256) 	unsigned long flags;
+fd65a3b5f855c (Marc Zyngier           2020-03-17 11:11:56 +0000  257) 
+2251e9ff1573a (Oliver Upton           2023-06-09 19:00:46 +0000  258) 	/* VM-wide vCPU feature set */
+2251e9ff1573a (Oliver Upton           2023-06-09 19:00:46 +0000  259) 	DECLARE_BITMAP(vcpu_features, KVM_VCPU_MAX_FEATURES);
+2251e9ff1573a (Oliver Upton           2023-06-09 19:00:46 +0000  260) 
+d7eec2360e389 (Marc Zyngier           2020-02-12 11:31:02 +0000  261) 	/*
+d7eec2360e389 (Marc Zyngier           2020-02-12 11:31:02 +0000  262) 	 * VM-wide PMU filter, implemented as a bitmap and big enough for
+d7eec2360e389 (Marc Zyngier           2020-02-12 11:31:02 +0000  263) 	 * up to 2^10 events (ARMv8.0) or 2^16 events (ARMv8.1+).
+d7eec2360e389 (Marc Zyngier           2020-02-12 11:31:02 +0000  264) 	 */
+d7eec2360e389 (Marc Zyngier           2020-02-12 11:31:02 +0000  265) 	unsigned long *pmu_filter;
+46b1878214724 (Marc Zyngier           2022-01-27 16:17:56 +0000  266) 	struct arm_pmu *arm_pmu;
+23711a5e662c1 (Marc Zyngier           2020-11-10 14:13:06 +0000  267) 
+583cda1b0e7d5 (Alexandru Elisei       2022-01-27 16:17:59 +0000  268) 	cpumask_var_t supported_cpus;
+23711a5e662c1 (Marc Zyngier           2020-11-10 14:13:06 +0000  269) 
+05714cab7d63b (Raghavendra Rao Ananta 2022-05-02 23:38:46 +0000  270) 	/* Hypercall features firmware registers' descriptor */
+05714cab7d63b (Raghavendra Rao Ananta 2022-05-02 23:38:46 +0000  271) 	struct kvm_smccc_features smccc_feat;
+fb88707dd39bd (Oliver Upton           2023-04-04 15:40:44 +0000  272) 	struct maple_tree smccc_filter;
+a1ec5c70d3f63 (Fuad Tabba             2022-11-10 19:02:45 +0000  273) 
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  274) 	/*
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  275) 	 * Emulated CPU ID registers per VM
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  276) 	 * (Op0, Op1, CRn, CRm, Op2) of the ID registers to be saved in it
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  277) 	 * is (3, 0, 0, crm, op2), where 1<=crm<8, 0<=op2<8.
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  278) 	 *
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  279) 	 * These emulated idregs are VM-wide, but accessed from the context of a vCPU.
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  280) 	 * Atomic access to multiple idregs are guarded by kvm_arch.config_lock.
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  281) 	 */
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  282) #define IDREG_IDX(id)		(((sys_reg_CRm(id) - 1) << 3) | sys_reg_Op2(id))
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  283) #define IDREG(kvm, id)		((kvm)->arch.id_regs[IDREG_IDX(id)])
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  284) #define KVM_ARM_ID_REG_NUM	(IDREG_IDX(sys_reg(3, 0, 0, 7, 7)) + 1)
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  285) 	u64 id_regs[KVM_ARM_ID_REG_NUM];
+473341469042b (Jing Zhang             2023-06-09 19:00:49 +0000  286) 
+a1ec5c70d3f63 (Fuad Tabba             2022-11-10 19:02:45 +0000  287) 	/*
+9d0c063a4d1d1 (Fuad Tabba             2022-11-10 19:02:46 +0000  288) 	 * For an untrusted host VM, 'pkvm.handle' is used to lookup
+a1ec5c70d3f63 (Fuad Tabba             2022-11-10 19:02:45 +0000  289) 	 * the associated pKVM instance in the hypervisor.
+a1ec5c70d3f63 (Fuad Tabba             2022-11-10 19:02:45 +0000  290) 	 */
+9d0c063a4d1d1 (Fuad Tabba             2022-11-10 19:02:46 +0000  291) 	struct kvm_protected_vm pkvm;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  292) };
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  293) 
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  294) struct kvm_vcpu_fault_info {
+0b12620fddb8a (Alexandru Elisei       2022-04-25 12:44:43 +0100  295) 	u64 esr_el2;		/* Hyp Syndrom Register */
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  296) 	u64 far_el2;		/* Hyp Fault Address Register */
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  297) 	u64 hpfar_el2;		/* Hyp IPA Fault Address Register */
+0067df413bd9d (James Morse            2018-01-15 19:39:05 +0000  298) 	u64 disr_el1;		/* Deferred [SError] Status Register */
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  299) };
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  300) 
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  301) enum vcpu_sysreg {
+8f7f4fe756bd5 (Marc Zyngier           2020-05-27 11:38:57 +0100  302) 	__INVALID_SYSREG__,   /* 0 is reserved as an invalid value */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  303) 	MPIDR_EL1,	/* MultiProcessor Affinity Register */
+7af0c2534f4c5 (Akihiko Odaki          2023-01-12 11:38:52 +0900  304) 	CLIDR_EL1,	/* Cache Level ID Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  305) 	CSSELR_EL1,	/* Cache Size Selection Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  306) 	SCTLR_EL1,	/* System Control Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  307) 	ACTLR_EL1,	/* Auxiliary Control Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  308) 	CPACR_EL1,	/* Coprocessor Access Control */
+73433762fcaeb (Dave Martin            2018-09-28 14:39:16 +0100  309) 	ZCR_EL1,	/* SVE Control */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  310) 	TTBR0_EL1,	/* Translation Table Base Register 0 */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  311) 	TTBR1_EL1,	/* Translation Table Base Register 1 */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  312) 	TCR_EL1,	/* Translation Control Register */
+fbff560682323 (Joey Gouly             2023-06-06 15:58:47 +0100  313) 	TCR2_EL1,	/* Extended Translation Control Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  314) 	ESR_EL1,	/* Exception Syndrome Register */
+ef769e320863a (Adam Buchbinder        2016-02-24 09:52:41 -0800  315) 	AFSR0_EL1,	/* Auxiliary Fault Status Register 0 */
+ef769e320863a (Adam Buchbinder        2016-02-24 09:52:41 -0800  316) 	AFSR1_EL1,	/* Auxiliary Fault Status Register 1 */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  317) 	FAR_EL1,	/* Fault Address Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  318) 	MAIR_EL1,	/* Memory Attribute Indirection Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  319) 	VBAR_EL1,	/* Vector Base Address Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  320) 	CONTEXTIDR_EL1,	/* Context ID Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  321) 	TPIDR_EL0,	/* Thread ID, User R/W */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  322) 	TPIDRRO_EL0,	/* Thread ID, User R/O */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  323) 	TPIDR_EL1,	/* Thread ID, Privileged */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  324) 	AMAIR_EL1,	/* Aux Memory Attribute Indirection Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  325) 	CNTKCTL_EL1,	/* Timer Control Register (EL1) */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  326) 	PAR_EL1,	/* Physical Address Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  327) 	MDSCR_EL1,	/* Monitor Debug System Control Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  328) 	MDCCINT_EL1,	/* Monitor Debug Comms Channel Interrupt Enable Reg */
+d42e26716d038 (Oliver Upton           2022-02-03 17:41:55 +0000  329) 	OSLSR_EL1,	/* OS Lock Status Register */
+c773ae2b34760 (James Morse            2018-01-15 19:39:02 +0000  330) 	DISR_EL1,	/* Deferred Interrupt Status Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  331) 
+ab9468340d2bc (Shannon Zhao           2015-06-18 16:01:53 +0800  332) 	/* Performance Monitors Registers */
+ab9468340d2bc (Shannon Zhao           2015-06-18 16:01:53 +0800  333) 	PMCR_EL0,	/* Control Register */
+3965c3ce751ab (Shannon Zhao           2015-08-31 17:20:22 +0800  334) 	PMSELR_EL0,	/* Event Counter Selection Register */
+051ff581ce70e (Shannon Zhao           2015-12-08 15:29:06 +0800  335) 	PMEVCNTR0_EL0,	/* Event Counter Register (0-30) */
+051ff581ce70e (Shannon Zhao           2015-12-08 15:29:06 +0800  336) 	PMEVCNTR30_EL0 = PMEVCNTR0_EL0 + 30,
+051ff581ce70e (Shannon Zhao           2015-12-08 15:29:06 +0800  337) 	PMCCNTR_EL0,	/* Cycle Counter Register */
+9feb21ac57d53 (Shannon Zhao           2016-02-23 11:11:27 +0800  338) 	PMEVTYPER0_EL0,	/* Event Type Register (0-30) */
+9feb21ac57d53 (Shannon Zhao           2016-02-23 11:11:27 +0800  339) 	PMEVTYPER30_EL0 = PMEVTYPER0_EL0 + 30,
+9feb21ac57d53 (Shannon Zhao           2016-02-23 11:11:27 +0800  340) 	PMCCFILTR_EL0,	/* Cycle Count Filter Register */
+96b0eebcc6a14 (Shannon Zhao           2015-09-08 12:26:13 +0800  341) 	PMCNTENSET_EL0,	/* Count Enable Set Register */
+9db52c78cd43c (Shannon Zhao           2015-09-08 14:40:20 +0800  342) 	PMINTENSET_EL1,	/* Interrupt Enable Set Register */
+76d883c4e6401 (Shannon Zhao           2015-09-08 15:03:26 +0800  343) 	PMOVSSET_EL0,	/* Overflow Flag Status Set Register */
+d692b8ad6ec48 (Shannon Zhao           2015-09-08 15:15:56 +0800  344) 	PMUSERENR_EL0,	/* User Enable Register */
+ab9468340d2bc (Shannon Zhao           2015-06-18 16:01:53 +0800  345) 
+384b40caa8afa (Mark Rutland           2019-04-23 10:12:35 +0530  346) 	/* Pointer Authentication Registers in a strict increasing order. */
+384b40caa8afa (Mark Rutland           2019-04-23 10:12:35 +0530  347) 	APIAKEYLO_EL1,
+384b40caa8afa (Mark Rutland           2019-04-23 10:12:35 +0530  348) 	APIAKEYHI_EL1,
+384b40caa8afa (Mark Rutland           2019-04-23 10:12:35 +0530  349) 	APIBKEYLO_EL1,
+384b40caa8afa (Mark Rutland           2019-04-23 10:12:35 +0530  350) 	APIBKEYHI_EL1,
+384b40caa8afa (Mark Rutland           2019-04-23 10:12:35 +0530  351) 	APDAKEYLO_EL1,
+384b40caa8afa (Mark Rutland           2019-04-23 10:12:35 +0530  352) 	APDAKEYHI_EL1,
+384b40caa8afa (Mark Rutland           2019-04-23 10:12:35 +0530  353) 	APDBKEYLO_EL1,
+384b40caa8afa (Mark Rutland           2019-04-23 10:12:35 +0530  354) 	APDBKEYHI_EL1,
+384b40caa8afa (Mark Rutland           2019-04-23 10:12:35 +0530  355) 	APGAKEYLO_EL1,
+384b40caa8afa (Mark Rutland           2019-04-23 10:12:35 +0530  356) 	APGAKEYHI_EL1,
+384b40caa8afa (Mark Rutland           2019-04-23 10:12:35 +0530  357) 
+98909e6d1c811 (Marc Zyngier           2019-06-28 23:05:38 +0100  358) 	ELR_EL1,
+1bded23ea71ce (Marc Zyngier           2019-06-28 23:05:38 +0100  359) 	SP_EL1,
+710f1982187af (Marc Zyngier           2019-06-28 23:05:38 +0100  360) 	SPSR_EL1,
+98909e6d1c811 (Marc Zyngier           2019-06-28 23:05:38 +0100  361) 
+41ce82f63c062 (Marc Zyngier           2019-06-28 15:23:43 +0100  362) 	CNTVOFF_EL2,
+41ce82f63c062 (Marc Zyngier           2019-06-28 15:23:43 +0100  363) 	CNTV_CVAL_EL0,
+41ce82f63c062 (Marc Zyngier           2019-06-28 15:23:43 +0100  364) 	CNTV_CTL_EL0,
+41ce82f63c062 (Marc Zyngier           2019-06-28 15:23:43 +0100  365) 	CNTP_CVAL_EL0,
+41ce82f63c062 (Marc Zyngier           2019-06-28 15:23:43 +0100  366) 	CNTP_CTL_EL0,
+41ce82f63c062 (Marc Zyngier           2019-06-28 15:23:43 +0100  367) 
+e1f358b504647 (Steven Price           2021-06-21 12:17:13 +0100  368) 	/* Memory Tagging Extension registers */
+e1f358b504647 (Steven Price           2021-06-21 12:17:13 +0100  369) 	RGSR_EL1,	/* Random Allocation Tag Seed Register */
+e1f358b504647 (Steven Price           2021-06-21 12:17:13 +0100  370) 	GCR_EL1,	/* Tag Control Register */
+e1f358b504647 (Steven Price           2021-06-21 12:17:13 +0100  371) 	TFSR_EL1,	/* Tag Fault Status Register (EL1) */
+e1f358b504647 (Steven Price           2021-06-21 12:17:13 +0100  372) 	TFSRE0_EL1,	/* Tag Fault Status Register (EL0) */
+e1f358b504647 (Steven Price           2021-06-21 12:17:13 +0100  373) 
+86f9de9db1783 (Joey Gouly             2023-06-06 15:58:48 +0100  374) 	/* Permission Indirection Extension registers */
+86f9de9db1783 (Joey Gouly             2023-06-06 15:58:48 +0100  375) 	PIR_EL1,       /* Permission Indirection Register 1 (EL1) */
+86f9de9db1783 (Joey Gouly             2023-06-06 15:58:48 +0100  376) 	PIRE0_EL1,     /*  Permission Indirection Register 0 (EL1) */
+86f9de9db1783 (Joey Gouly             2023-06-06 15:58:48 +0100  377) 
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  378) 	/* 32bit specific registers. */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  379) 	DACR32_EL2,	/* Domain Access Control Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  380) 	IFSR32_EL2,	/* Instruction Fault Status Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  381) 	FPEXC32_EL2,	/* Floating-Point Exception Control Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  382) 	DBGVCR32_EL2,	/* Debug Vector Catch Register */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  383) 
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  384) 	/* EL2 registers */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  385) 	VPIDR_EL2,	/* Virtualization Processor ID Register */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  386) 	VMPIDR_EL2,	/* Virtualization Multiprocessor ID Register */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  387) 	SCTLR_EL2,	/* System Control Register (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  388) 	ACTLR_EL2,	/* Auxiliary Control Register (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  389) 	HCR_EL2,	/* Hypervisor Configuration Register */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  390) 	MDCR_EL2,	/* Monitor Debug Configuration Register (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  391) 	CPTR_EL2,	/* Architectural Feature Trap Register (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  392) 	HSTR_EL2,	/* Hypervisor System Trap Register */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  393) 	HACR_EL2,	/* Hypervisor Auxiliary Control Register */
+03fb54d0aa73c (Marc Zyngier           2023-08-15 19:39:02 +0100  394) 	HCRX_EL2,	/* Extended Hypervisor Configuration Register */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  395) 	TTBR0_EL2,	/* Translation Table Base Register 0 (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  396) 	TTBR1_EL2,	/* Translation Table Base Register 1 (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  397) 	TCR_EL2,	/* Translation Control Register (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  398) 	VTTBR_EL2,	/* Virtualization Translation Table Base Register */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  399) 	VTCR_EL2,	/* Virtualization Translation Control Register */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  400) 	SPSR_EL2,	/* EL2 saved program status register */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  401) 	ELR_EL2,	/* EL2 exception link register */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  402) 	AFSR0_EL2,	/* Auxiliary Fault Status Register 0 (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  403) 	AFSR1_EL2,	/* Auxiliary Fault Status Register 1 (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  404) 	ESR_EL2,	/* Exception Syndrome Register (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  405) 	FAR_EL2,	/* Fault Address Register (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  406) 	HPFAR_EL2,	/* Hypervisor IPA Fault Address Register */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  407) 	MAIR_EL2,	/* Memory Attribute Indirection Register (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  408) 	AMAIR_EL2,	/* Auxiliary Memory Attribute Indirection Register (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  409) 	VBAR_EL2,	/* Vector Base Address Register (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  410) 	RVBAR_EL2,	/* Reset Vector Base Address Register */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  411) 	CONTEXTIDR_EL2,	/* Context ID Register (EL2) */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  412) 	TPIDR_EL2,	/* EL2 Software Thread ID Register */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  413) 	CNTHCTL_EL2,	/* Counter-timer Hypervisor Control register */
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  414) 	SP_EL2,		/* EL2 Stack Pointer */
+50d2fe4648c50 (Marc Zyngier           2023-08-15 19:38:46 +0100  415) 	HFGRTR_EL2,
+50d2fe4648c50 (Marc Zyngier           2023-08-15 19:38:46 +0100  416) 	HFGWTR_EL2,
+50d2fe4648c50 (Marc Zyngier           2023-08-15 19:38:46 +0100  417) 	HFGITR_EL2,
+50d2fe4648c50 (Marc Zyngier           2023-08-15 19:38:46 +0100  418) 	HDFGRTR_EL2,
+50d2fe4648c50 (Marc Zyngier           2023-08-15 19:38:46 +0100  419) 	HDFGWTR_EL2,
+81dc9504a7006 (Marc Zyngier           2023-03-30 18:47:57 +0100  420) 	CNTHP_CTL_EL2,
+81dc9504a7006 (Marc Zyngier           2023-03-30 18:47:57 +0100  421) 	CNTHP_CVAL_EL2,
+81dc9504a7006 (Marc Zyngier           2023-03-30 18:47:57 +0100  422) 	CNTHV_CTL_EL2,
+81dc9504a7006 (Marc Zyngier           2023-03-30 18:47:57 +0100  423) 	CNTHV_CVAL_EL2,
+5305cc2c34004 (Marc Zyngier           2023-02-09 17:58:08 +0000  424) 
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  425) 	NR_SYS_REGS	/* Nothing after this line! */
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  426) };
+9d8415d6c148a (Marc Zyngier           2015-10-25 19:57:11 +0000  427) 
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  428) struct kvm_cpu_context {
+e47c2055c68e0 (Marc Zyngier           2019-06-28 22:40:58 +0100  429) 	struct user_pt_regs regs;	/* sp = sp_el0 */
+e47c2055c68e0 (Marc Zyngier           2019-06-28 22:40:58 +0100  430) 
+fd85b66789aaa (Marc Zyngier           2019-06-28 23:36:42 +0100  431) 	u64	spsr_abt;
+fd85b66789aaa (Marc Zyngier           2019-06-28 23:36:42 +0100  432) 	u64	spsr_und;
+fd85b66789aaa (Marc Zyngier           2019-06-28 23:36:42 +0100  433) 	u64	spsr_irq;
+fd85b66789aaa (Marc Zyngier           2019-06-28 23:36:42 +0100  434) 	u64	spsr_fiq;
+e47c2055c68e0 (Marc Zyngier           2019-06-28 22:40:58 +0100  435) 
+e47c2055c68e0 (Marc Zyngier           2019-06-28 22:40:58 +0100  436) 	struct user_fpsimd_state fp_regs;
+e47c2055c68e0 (Marc Zyngier           2019-06-28 22:40:58 +0100  437) 
+5f7e02aebdf0c (Marc Zyngier           2020-10-29 17:21:37 +0000  438) 	u64 sys_regs[NR_SYS_REGS];
+c97e166e54b66 (James Morse            2018-01-08 15:38:05 +0000  439) 
+c97e166e54b66 (James Morse            2018-01-08 15:38:05 +0000  440) 	struct kvm_vcpu *__hyp_running_vcpu;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  441) };
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  442) 
+630a16854d2d2 (Andrew Murray          2019-04-09 20:22:11 +0100  443) struct kvm_host_data {
+630a16854d2d2 (Andrew Murray          2019-04-09 20:22:11 +0100  444) 	struct kvm_cpu_context host_ctxt;
+630a16854d2d2 (Andrew Murray          2019-04-09 20:22:11 +0100  445) };
+630a16854d2d2 (Andrew Murray          2019-04-09 20:22:11 +0100  446) 
+ff367fe473a98 (David Brazdil          2020-12-08 14:24:47 +0000  447) struct kvm_host_psci_config {
+ff367fe473a98 (David Brazdil          2020-12-08 14:24:47 +0000  448) 	/* PSCI version used by host. */
+ff367fe473a98 (David Brazdil          2020-12-08 14:24:47 +0000  449) 	u32 version;
+12bdce4f41197 (Will Deacon            2023-05-23 11:18:19 +0100  450) 	u32 smccc_version;
+ff367fe473a98 (David Brazdil          2020-12-08 14:24:47 +0000  451) 
+ff367fe473a98 (David Brazdil          2020-12-08 14:24:47 +0000  452) 	/* Function IDs used by host if version is v0.1. */
+ff367fe473a98 (David Brazdil          2020-12-08 14:24:47 +0000  453) 	struct psci_0_1_function_ids function_ids_0_1;
+ff367fe473a98 (David Brazdil          2020-12-08 14:24:47 +0000  454) 
+767c973f2e4a9 (Marc Zyngier           2020-12-22 12:46:41 +0000  455) 	bool psci_0_1_cpu_suspend_implemented;
+767c973f2e4a9 (Marc Zyngier           2020-12-22 12:46:41 +0000  456) 	bool psci_0_1_cpu_on_implemented;
+767c973f2e4a9 (Marc Zyngier           2020-12-22 12:46:41 +0000  457) 	bool psci_0_1_cpu_off_implemented;
+767c973f2e4a9 (Marc Zyngier           2020-12-22 12:46:41 +0000  458) 	bool psci_0_1_migrate_implemented;
+ff367fe473a98 (David Brazdil          2020-12-08 14:24:47 +0000  459) };
+ff367fe473a98 (David Brazdil          2020-12-08 14:24:47 +0000  460) 
+ff367fe473a98 (David Brazdil          2020-12-08 14:24:47 +0000  461) extern struct kvm_host_psci_config kvm_nvhe_sym(kvm_host_psci_config);
+ff367fe473a98 (David Brazdil          2020-12-08 14:24:47 +0000  462) #define kvm_host_psci_config CHOOSE_NVHE_SYM(kvm_host_psci_config)
+ff367fe473a98 (David Brazdil          2020-12-08 14:24:47 +0000  463) 
+61fe0c37af57a (David Brazdil          2020-12-08 14:24:50 +0000  464) extern s64 kvm_nvhe_sym(hyp_physvirt_offset);
+61fe0c37af57a (David Brazdil          2020-12-08 14:24:50 +0000  465) #define hyp_physvirt_offset CHOOSE_NVHE_SYM(hyp_physvirt_offset)
+61fe0c37af57a (David Brazdil          2020-12-08 14:24:50 +0000  466) 
+61fe0c37af57a (David Brazdil          2020-12-08 14:24:50 +0000  467) extern u64 kvm_nvhe_sym(hyp_cpu_logical_map)[NR_CPUS];
+61fe0c37af57a (David Brazdil          2020-12-08 14:24:50 +0000  468) #define hyp_cpu_logical_map CHOOSE_NVHE_SYM(hyp_cpu_logical_map)
+61fe0c37af57a (David Brazdil          2020-12-08 14:24:50 +0000  469) 
+358b28f09f0ab (Marc Zyngier           2018-12-20 11:36:07 +0000  470) struct vcpu_reset_state {
+358b28f09f0ab (Marc Zyngier           2018-12-20 11:36:07 +0000  471) 	unsigned long	pc;
+358b28f09f0ab (Marc Zyngier           2018-12-20 11:36:07 +0000  472) 	unsigned long	r0;
+358b28f09f0ab (Marc Zyngier           2018-12-20 11:36:07 +0000  473) 	bool		be;
+358b28f09f0ab (Marc Zyngier           2018-12-20 11:36:07 +0000  474) 	bool		reset;
+358b28f09f0ab (Marc Zyngier           2018-12-20 11:36:07 +0000  475) };
+358b28f09f0ab (Marc Zyngier           2018-12-20 11:36:07 +0000  476) 
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  477) struct kvm_vcpu_arch {
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  478) 	struct kvm_cpu_context ctxt;
+0033cd9339642 (Mark Brown             2022-04-19 12:22:23 +0100  479) 
+baa8515281b30 (Mark Brown             2022-11-15 09:46:34 +0000  480) 	/*
+baa8515281b30 (Mark Brown             2022-11-15 09:46:34 +0000  481) 	 * Guest floating point state
+baa8515281b30 (Mark Brown             2022-11-15 09:46:34 +0000  482) 	 *
+baa8515281b30 (Mark Brown             2022-11-15 09:46:34 +0000  483) 	 * The architecture has two main floating point extensions,
+baa8515281b30 (Mark Brown             2022-11-15 09:46:34 +0000  484) 	 * the original FPSIMD and SVE.  These have overlapping
+baa8515281b30 (Mark Brown             2022-11-15 09:46:34 +0000  485) 	 * register views, with the FPSIMD V registers occupying the
+baa8515281b30 (Mark Brown             2022-11-15 09:46:34 +0000  486) 	 * low 128 bits of the SVE Z registers.  When the core
+baa8515281b30 (Mark Brown             2022-11-15 09:46:34 +0000  487) 	 * floating point code saves the register state of a task it
+baa8515281b30 (Mark Brown             2022-11-15 09:46:34 +0000  488) 	 * records which view it saved in fp_type.
+baa8515281b30 (Mark Brown             2022-11-15 09:46:34 +0000  489) 	 */
+b43b5dd990eb2 (Dave Martin            2018-09-28 14:39:17 +0100  490) 	void *sve_state;
+baa8515281b30 (Mark Brown             2022-11-15 09:46:34 +0000  491) 	enum fp_type fp_type;
+b43b5dd990eb2 (Dave Martin            2018-09-28 14:39:17 +0100  492) 	unsigned int sve_max_vl;
+0033cd9339642 (Mark Brown             2022-04-19 12:22:23 +0100  493) 	u64 svcr;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  494) 
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  495) 	/* Stage 2 paging state used by the hardware on next switch */
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  496) 	struct kvm_s2_mmu *hw_mmu;
+a0e50aa3f4a8a (Christoffer Dall       2019-01-04 21:09:05 +0100  497) 
+1460b4b25fde5 (Fuad Tabba             2021-08-17 09:11:25 +0100  498) 	/* Values of trap registers for the guest. */
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  499) 	u64 hcr_el2;
+d6c850dd6ce9c (Fuad Tabba             2021-08-17 09:11:22 +0100  500) 	u64 mdcr_el2;
+cd496228fd8de (Fuad Tabba             2021-08-17 09:11:27 +0100  501) 	u64 cptr_el2;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  502) 
+1460b4b25fde5 (Fuad Tabba             2021-08-17 09:11:25 +0100  503) 	/* Values of trap registers for the host before guest entry. */
+1460b4b25fde5 (Fuad Tabba             2021-08-17 09:11:25 +0100  504) 	u64 mdcr_el2_host;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  505) 
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  506) 	/* Exception Information */
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  507) 	struct kvm_vcpu_fault_info fault;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  508) 
+f8077b0d59230 (Marc Zyngier           2022-05-28 12:38:14 +0100  509) 	/* Ownership of the FP regs */
+f8077b0d59230 (Marc Zyngier           2022-05-28 12:38:14 +0100  510) 	enum {
+f8077b0d59230 (Marc Zyngier           2022-05-28 12:38:14 +0100  511) 		FP_STATE_FREE,
+f8077b0d59230 (Marc Zyngier           2022-05-28 12:38:14 +0100  512) 		FP_STATE_HOST_OWNED,
+f8077b0d59230 (Marc Zyngier           2022-05-28 12:38:14 +0100  513) 		FP_STATE_GUEST_OWNED,
+f8077b0d59230 (Marc Zyngier           2022-05-28 12:38:14 +0100  514) 	} fp_state;
+f8077b0d59230 (Marc Zyngier           2022-05-28 12:38:14 +0100  515) 
+690bacb83bc30 (Marc Zyngier           2022-05-28 12:38:16 +0100  516) 	/* Configuration flags, set once and for all before the vcpu can run */
+54ddda919c4bc (Marc Zyngier           2022-05-28 12:38:27 +0100  517) 	u8 cflags;
+690bacb83bc30 (Marc Zyngier           2022-05-28 12:38:16 +0100  518) 
+690bacb83bc30 (Marc Zyngier           2022-05-28 12:38:16 +0100  519) 	/* Input flags to the hypervisor code, potentially cleared after use */
+54ddda919c4bc (Marc Zyngier           2022-05-28 12:38:27 +0100  520) 	u8 iflags;
+690bacb83bc30 (Marc Zyngier           2022-05-28 12:38:16 +0100  521) 
+690bacb83bc30 (Marc Zyngier           2022-05-28 12:38:16 +0100  522) 	/* State flags for kernel bookkeeping, unused by the hypervisor code */
+54ddda919c4bc (Marc Zyngier           2022-05-28 12:38:27 +0100  523) 	u8 sflags;
+690bacb83bc30 (Marc Zyngier           2022-05-28 12:38:16 +0100  524) 
+0fa4a3137e943 (Marc Zyngier           2022-05-28 12:38:28 +0100  525) 	/*
+0fa4a3137e943 (Marc Zyngier           2022-05-28 12:38:28 +0100  526) 	 * Don't run the guest (internal implementation need).
+0fa4a3137e943 (Marc Zyngier           2022-05-28 12:38:28 +0100  527) 	 *
+0fa4a3137e943 (Marc Zyngier           2022-05-28 12:38:28 +0100  528) 	 * Contrary to the flags above, this is set/cleared outside of
+0fa4a3137e943 (Marc Zyngier           2022-05-28 12:38:28 +0100  529) 	 * a vcpu context, and thus cannot be mixed with the flags
+0fa4a3137e943 (Marc Zyngier           2022-05-28 12:38:28 +0100  530) 	 * themselves (or the flag accesses need to be made atomic).
+0fa4a3137e943 (Marc Zyngier           2022-05-28 12:38:28 +0100  531) 	 */
+0fa4a3137e943 (Marc Zyngier           2022-05-28 12:38:28 +0100  532) 	bool pause;
+0c557ed4983b7 (Marc Zyngier           2014-04-24 10:24:46 +0100  533) 
+84e690bfbed1d (Alex Bennée            2015-07-07 17:30:00 +0100  534) 	/*
+84e690bfbed1d (Alex Bennée            2015-07-07 17:30:00 +0100  535) 	 * We maintain more than a single set of debug registers to support
+84e690bfbed1d (Alex Bennée            2015-07-07 17:30:00 +0100  536) 	 * debugging the guest from the host and to maintain separate host and
+84e690bfbed1d (Alex Bennée            2015-07-07 17:30:00 +0100  537) 	 * guest state during world switches. vcpu_debug_state are the debug
+84e690bfbed1d (Alex Bennée            2015-07-07 17:30:00 +0100  538) 	 * registers of the vcpu as the guest sees them.  host_debug_state are
+834bf88726f0f (Alex Bennée            2015-07-07 17:30:02 +0100  539) 	 * the host registers which are saved and restored during
+834bf88726f0f (Alex Bennée            2015-07-07 17:30:02 +0100  540) 	 * world switches. external_debug_state contains the debug
+834bf88726f0f (Alex Bennée            2015-07-07 17:30:02 +0100  541) 	 * values we want to debug the guest. This is set via the
+834bf88726f0f (Alex Bennée            2015-07-07 17:30:02 +0100  542) 	 * KVM_SET_GUEST_DEBUG ioctl.
+84e690bfbed1d (Alex Bennée            2015-07-07 17:30:00 +0100  543) 	 *
+84e690bfbed1d (Alex Bennée            2015-07-07 17:30:00 +0100  544) 	 * debug_ptr points to the set of debug registers that should be loaded
+84e690bfbed1d (Alex Bennée            2015-07-07 17:30:00 +0100  545) 	 * onto the hardware when running the guest.
+84e690bfbed1d (Alex Bennée            2015-07-07 17:30:00 +0100  546) 	 */
+84e690bfbed1d (Alex Bennée            2015-07-07 17:30:00 +0100  547) 	struct kvm_guest_debug_arch *debug_ptr;
+84e690bfbed1d (Alex Bennée            2015-07-07 17:30:00 +0100  548) 	struct kvm_guest_debug_arch vcpu_debug_state;
+834bf88726f0f (Alex Bennée            2015-07-07 17:30:02 +0100  549) 	struct kvm_guest_debug_arch external_debug_state;
+84e690bfbed1d (Alex Bennée            2015-07-07 17:30:00 +0100  550) 
+e6b673b741ea0 (Dave Martin            2018-04-06 14:55:59 +0100  551) 	struct user_fpsimd_state *host_fpsimd_state;	/* hyp VA */
+e6b673b741ea0 (Dave Martin            2018-04-06 14:55:59 +0100  552) 
+f85279b4bd481 (Will Deacon            2016-09-22 11:35:43 +0100  553) 	struct {
+f85279b4bd481 (Will Deacon            2016-09-22 11:35:43 +0100  554) 		/* {Break,watch}point registers */
+f85279b4bd481 (Will Deacon            2016-09-22 11:35:43 +0100  555) 		struct kvm_guest_debug_arch regs;
+f85279b4bd481 (Will Deacon            2016-09-22 11:35:43 +0100  556) 		/* Statistical profiling extension */
+f85279b4bd481 (Will Deacon            2016-09-22 11:35:43 +0100  557) 		u64 pmscr_el1;
+a1319260bf629 (Suzuki K Poulose       2021-04-05 17:42:54 +0100  558) 		/* Self-hosted trace */
+a1319260bf629 (Suzuki K Poulose       2021-04-05 17:42:54 +0100  559) 		u64 trfcr_el1;
+f85279b4bd481 (Will Deacon            2016-09-22 11:35:43 +0100  560) 	} host_debug_state;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  561) 
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  562) 	/* VGIC state */
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  563) 	struct vgic_cpu vgic_cpu;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  564) 	struct arch_timer_cpu timer_cpu;
+04fe472615d02 (Shannon Zhao           2015-09-11 09:38:32 +0800  565) 	struct kvm_pmu pmu;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  566) 
+337b99bf7edfb (Alex Bennée            2015-07-07 17:29:58 +0100  567) 	/*
+337b99bf7edfb (Alex Bennée            2015-07-07 17:29:58 +0100  568) 	 * Guest registers we preserve during guest debugging.
+337b99bf7edfb (Alex Bennée            2015-07-07 17:29:58 +0100  569) 	 *
+337b99bf7edfb (Alex Bennée            2015-07-07 17:29:58 +0100  570) 	 * These shadow registers are updated by the kvm_handle_sys_reg
+337b99bf7edfb (Alex Bennée            2015-07-07 17:29:58 +0100  571) 	 * trap handler if the guest accesses or updates them while we
+337b99bf7edfb (Alex Bennée            2015-07-07 17:29:58 +0100  572) 	 * are using guest debug.
+337b99bf7edfb (Alex Bennée            2015-07-07 17:29:58 +0100  573) 	 */
+337b99bf7edfb (Alex Bennée            2015-07-07 17:29:58 +0100  574) 	struct {
+337b99bf7edfb (Alex Bennée            2015-07-07 17:29:58 +0100  575) 		u32	mdscr_el1;
+34fbdee086cfc (Reiji Watanabe         2022-09-16 18:05:57 -0700  576) 		bool	pstate_ss;
+337b99bf7edfb (Alex Bennée            2015-07-07 17:29:58 +0100  577) 	} guest_debug_preserved;
+337b99bf7edfb (Alex Bennée            2015-07-07 17:29:58 +0100  578) 
+b171f9bbb130c (Oliver Upton           2022-05-04 03:24:37 +0000  579) 	/* vcpu power state */
+b171f9bbb130c (Oliver Upton           2022-05-04 03:24:37 +0000  580) 	struct kvm_mp_state mp_state;
+0acc7239c20a8 (Oliver Upton           2023-03-27 16:47:44 +0000  581) 	spinlock_t mp_state_lock;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  582) 
+0f23af41fa8c6 (Will Deacon            2022-04-06 16:52:57 +0100  583) 	union {
+0f23af41fa8c6 (Will Deacon            2022-04-06 16:52:57 +0100  584) 		/* Cache some mmu pages needed inside spinlock regions */
+0f23af41fa8c6 (Will Deacon            2022-04-06 16:52:57 +0100  585) 		struct kvm_mmu_memory_cache mmu_page_cache;
+0f23af41fa8c6 (Will Deacon            2022-04-06 16:52:57 +0100  586) 		/* Pages to be donated to pkvm/EL2 if it runs out */
+0f23af41fa8c6 (Will Deacon            2022-04-06 16:52:57 +0100  587) 		struct kvm_hyp_memcache pkvm_memcache;
+0f23af41fa8c6 (Will Deacon            2022-04-06 16:52:57 +0100  588) 	};
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  589) 
+ef98406036769 (Oliver Upton           2023-07-10 19:31:39 +0000  590) 	/* feature flags */
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  591) 	DECLARE_BITMAP(features, KVM_VCPU_MAX_FEATURES);
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  592) 
+4715c14bc1366 (James Morse            2018-01-15 19:39:01 +0000  593) 	/* Virtual SError ESR to restore when HCR_EL2.VSE is set */
+4715c14bc1366 (James Morse            2018-01-15 19:39:01 +0000  594) 	u64 vsesr_el2;
+d47533dab9f50 (Christoffer Dall       2017-12-23 21:53:48 +0100  595) 
+358b28f09f0ab (Marc Zyngier           2018-12-20 11:36:07 +0000  596) 	/* Additional reset state */
+358b28f09f0ab (Marc Zyngier           2018-12-20 11:36:07 +0000  597) 	struct vcpu_reset_state	reset_state;
+358b28f09f0ab (Marc Zyngier           2018-12-20 11:36:07 +0000  598) 
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100  599) 	/* Guest PV state */
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100  600) 	struct {
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100  601) 		u64 last_steal;
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100  602) 		gpa_t base;
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100  603) 	} steal;
+7af0c2534f4c5 (Akihiko Odaki          2023-01-12 11:38:52 +0900  604) 
+7af0c2534f4c5 (Akihiko Odaki          2023-01-12 11:38:52 +0900  605) 	/* Per-vcpu CCSIDR override or NULL */
+7af0c2534f4c5 (Akihiko Odaki          2023-01-12 11:38:52 +0900  606) 	u32 *ccsidr;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  607) };
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  608) 
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  609) /*
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  610)  * Each 'flag' is composed of a comma-separated triplet:
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  611)  *
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  612)  * - the flag-set it belongs to in the vcpu->arch structure
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  613)  * - the value for that flag
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  614)  * - the mask for that flag
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  615)  *
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  616)  *  __vcpu_single_flag() builds such a triplet for a single-bit flag.
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  617)  * unpack_vcpu_flag() extract the flag value from the triplet for
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  618)  * direct use outside of the flag accessors.
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  619)  */
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  620) #define __vcpu_single_flag(_set, _f)	_set, (_f), (_f)
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  621) 
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  622) #define __unpack_flag(_set, _f, _m)	_f
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  623) #define unpack_vcpu_flag(...)		__unpack_flag(__VA_ARGS__)
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  624) 
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  625) #define __build_check_flag(v, flagset, f, m)			\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  626) 	do {							\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  627) 		typeof(v->arch.flagset) *_fset;			\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  628) 								\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  629) 		/* Check that the flags fit in the mask */	\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  630) 		BUILD_BUG_ON(HWEIGHT(m) != HWEIGHT((f) | (m)));	\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  631) 		/* Check that the flags fit in the type */	\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  632) 		BUILD_BUG_ON((sizeof(*_fset) * 8) <= __fls(m));	\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  633) 	} while (0)
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  634) 
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  635) #define __vcpu_get_flag(v, flagset, f, m)			\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  636) 	({							\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  637) 		__build_check_flag(v, flagset, f, m);		\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  638) 								\
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  639) 		READ_ONCE(v->arch.flagset) & (m);		\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  640) 	})
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  641) 
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  642) /*
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  643)  * Note that the set/clear accessors must be preempt-safe in order to
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  644)  * avoid nesting them with load/put which also manipulate flags...
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  645)  */
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  646) #ifdef __KVM_NVHE_HYPERVISOR__
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  647) /* the nVHE hypervisor is always non-preemptible */
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  648) #define __vcpu_flags_preempt_disable()
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  649) #define __vcpu_flags_preempt_enable()
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  650) #else
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  651) #define __vcpu_flags_preempt_disable()	preempt_disable()
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  652) #define __vcpu_flags_preempt_enable()	preempt_enable()
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  653) #endif
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  654) 
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  655) #define __vcpu_set_flag(v, flagset, f, m)			\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  656) 	do {							\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  657) 		typeof(v->arch.flagset) *fset;			\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  658) 								\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  659) 		__build_check_flag(v, flagset, f, m);		\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  660) 								\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  661) 		fset = &v->arch.flagset;			\
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  662) 		__vcpu_flags_preempt_disable();			\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  663) 		if (HWEIGHT(m) > 1)				\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  664) 			*fset &= ~(m);				\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  665) 		*fset |= (f);					\
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  666) 		__vcpu_flags_preempt_enable();			\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  667) 	} while (0)
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  668) 
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  669) #define __vcpu_clear_flag(v, flagset, f, m)			\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  670) 	do {							\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  671) 		typeof(v->arch.flagset) *fset;			\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  672) 								\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  673) 		__build_check_flag(v, flagset, f, m);		\
+5a3984f4ec73d (Marc Zyngier           2022-05-28 12:38:26 +0100  674) 								\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  675) 		fset = &v->arch.flagset;			\
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  676) 		__vcpu_flags_preempt_disable();			\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  677) 		*fset &= ~(m);					\
+35dcb3ac663a1 (Marc Zyngier           2023-04-18 13:57:37 +0100  678) 		__vcpu_flags_preempt_enable();			\
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  679) 	} while (0)
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  680) 
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  681) #define __vcpu_copy_flag(vt, vs, flagset, f, m)			\
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  682) 	do {							\
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  683) 		typeof(vs->arch.flagset) tmp, val;		\
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  684) 								\
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  685) 		__build_check_flag(vs, flagset, f, m);		\
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  686) 								\
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  687) 		val = READ_ONCE(vs->arch.flagset);		\
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  688) 		val &= (m);					\
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  689) 		tmp = READ_ONCE(vt->arch.flagset);		\
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  690) 		tmp &= ~(m);					\
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  691) 		tmp |= val;					\
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  692) 		WRITE_ONCE(vt->arch.flagset, tmp);		\
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  693) 	} while (0)
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  694) 
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  695) 
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  696) #define vcpu_get_flag(v, ...)	__vcpu_get_flag((v), __VA_ARGS__)
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  697) #define vcpu_set_flag(v, ...)	__vcpu_set_flag((v), __VA_ARGS__)
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  698) #define vcpu_clear_flag(v, ...)	__vcpu_clear_flag((v), __VA_ARGS__)
+e43e936c64095 (Marc Zyngier           2022-06-11 11:50:23 +0100  699) #define vcpu_copy_flag(vt, vs,...) __vcpu_copy_flag((vt), (vs), __VA_ARGS__)
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  700) 
+4c0680d394d8a (Marc Zyngier           2022-05-28 12:38:17 +0100  701) /* SVE exposed to guest */
+4c0680d394d8a (Marc Zyngier           2022-05-28 12:38:17 +0100  702) #define GUEST_HAS_SVE		__vcpu_single_flag(cflags, BIT(0))
+4c0680d394d8a (Marc Zyngier           2022-05-28 12:38:17 +0100  703) /* SVE config completed */
+4c0680d394d8a (Marc Zyngier           2022-05-28 12:38:17 +0100  704) #define VCPU_SVE_FINALIZED	__vcpu_single_flag(cflags, BIT(1))
+4c0680d394d8a (Marc Zyngier           2022-05-28 12:38:17 +0100  705) /* PTRAUTH exposed to guest */
+4c0680d394d8a (Marc Zyngier           2022-05-28 12:38:17 +0100  706) #define GUEST_HAS_PTRAUTH	__vcpu_single_flag(cflags, BIT(2))
+ef98406036769 (Oliver Upton           2023-07-10 19:31:39 +0000  707) /* KVM_ARM_VCPU_INIT completed */
+ef98406036769 (Oliver Upton           2023-07-10 19:31:39 +0000  708) #define VCPU_INITIALIZED	__vcpu_single_flag(cflags, BIT(3))
+4c0680d394d8a (Marc Zyngier           2022-05-28 12:38:17 +0100  709) 
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  710) /* Exception pending */
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  711) #define PENDING_EXCEPTION	__vcpu_single_flag(iflags, BIT(0))
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  712) /*
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  713)  * PC increment. Overlaps with EXCEPT_MASK on purpose so that it can't
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  714)  * be set together with an exception...
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  715)  */
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  716) #define INCREMENT_PC		__vcpu_single_flag(iflags, BIT(1))
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  717) /* Target EL/MODE (not a single flag, but let's abuse the macro) */
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  718) #define EXCEPT_MASK		__vcpu_single_flag(iflags, GENMASK(3, 1))
+faa9244172a41 (Marc Zyngier           2022-06-11 11:50:50 +0100  719) /* Cover both PENDING_EXCEPTION and EXCEPT_MASK for global operations */
+faa9244172a41 (Marc Zyngier           2022-06-11 11:50:50 +0100  720) #define PC_UPDATE_REQ		__vcpu_single_flag(iflags, GENMASK(3, 0))
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  721) 
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  722) /* Helpers to encode exceptions with minimum fuss */
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  723) #define __EXCEPT_MASK_VAL	unpack_vcpu_flag(EXCEPT_MASK)
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  724) #define __EXCEPT_SHIFT		__builtin_ctzl(__EXCEPT_MASK_VAL)
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  725) #define __vcpu_except_flags(_f)	iflags, (_f << __EXCEPT_SHIFT), __EXCEPT_MASK_VAL
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  726) 
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  727) /*
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  728)  * When PENDING_EXCEPTION is set, EXCEPT_MASK can take the following
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  729)  * values:
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  730)  *
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  731)  * For AArch32 EL1:
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  732)  */
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  733) #define EXCEPT_AA32_UND		__vcpu_except_flags(0)
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  734) #define EXCEPT_AA32_IABT	__vcpu_except_flags(1)
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  735) #define EXCEPT_AA32_DABT	__vcpu_except_flags(2)
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  736) /* For AArch64: */
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  737) #define EXCEPT_AA64_EL1_SYNC	__vcpu_except_flags(0)
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  738) #define EXCEPT_AA64_EL1_IRQ	__vcpu_except_flags(1)
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  739) #define EXCEPT_AA64_EL1_FIQ	__vcpu_except_flags(2)
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  740) #define EXCEPT_AA64_EL1_SERR	__vcpu_except_flags(3)
+47f3a2fc765ae (Jintack Lim            2023-02-09 17:58:11 +0000  741) /* For AArch64 with NV: */
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  742) #define EXCEPT_AA64_EL2_SYNC	__vcpu_except_flags(4)
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  743) #define EXCEPT_AA64_EL2_IRQ	__vcpu_except_flags(5)
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  744) #define EXCEPT_AA64_EL2_FIQ	__vcpu_except_flags(6)
+699bb2e0c6f37 (Marc Zyngier           2022-05-28 12:38:18 +0100  745) #define EXCEPT_AA64_EL2_SERR	__vcpu_except_flags(7)
+b1da49088ac68 (Marc Zyngier           2022-05-28 12:38:19 +0100  746) /* Guest debug is live */
+b1da49088ac68 (Marc Zyngier           2022-05-28 12:38:19 +0100  747) #define DEBUG_DIRTY		__vcpu_single_flag(iflags, BIT(4))
+b1da49088ac68 (Marc Zyngier           2022-05-28 12:38:19 +0100  748) /* Save SPE context if active  */
+b1da49088ac68 (Marc Zyngier           2022-05-28 12:38:19 +0100  749) #define DEBUG_STATE_SAVE_SPE	__vcpu_single_flag(iflags, BIT(5))
+b1da49088ac68 (Marc Zyngier           2022-05-28 12:38:19 +0100  750) /* Save TRBE context if active  */
+b1da49088ac68 (Marc Zyngier           2022-05-28 12:38:19 +0100  751) #define DEBUG_STATE_SAVE_TRBE	__vcpu_single_flag(iflags, BIT(6))
+cd95de340b1db (Marc Zyngier           2022-04-25 14:48:46 +0100  752) /* vcpu running in HYP context (VHE-only) */
+d9552fe133f9f (Marc Zyngier           2023-02-09 17:58:16 +0000  753) #define VCPU_HYP_CONTEXT	__vcpu_single_flag(iflags, BIT(7))
+cd95de340b1db (Marc Zyngier           2022-04-25 14:48:46 +0100  754) /* pKVM host vcpu state is dirty, needs resync (nVHE-only) */
+cd95de340b1db (Marc Zyngier           2022-04-25 14:48:46 +0100  755) #define PKVM_HOST_STATE_DIRTY	__vcpu_single_flag(iflags, BIT(7))
+e87abb73e5946 (Marc Zyngier           2022-05-28 12:38:15 +0100  756) 
+0affa37fcd1d6 (Marc Zyngier           2022-05-28 12:38:20 +0100  757) /* SVE enabled for host EL0 */
+0affa37fcd1d6 (Marc Zyngier           2022-05-28 12:38:20 +0100  758) #define HOST_SVE_ENABLED	__vcpu_single_flag(sflags, BIT(0))
+0affa37fcd1d6 (Marc Zyngier           2022-05-28 12:38:20 +0100  759) /* SME enabled for EL0 */
+0affa37fcd1d6 (Marc Zyngier           2022-05-28 12:38:20 +0100  760) #define HOST_SME_ENABLED	__vcpu_single_flag(sflags, BIT(1))
+aff3ccd7320ee (Marc Zyngier           2022-05-28 12:38:21 +0100  761) /* Physical CPU not in supported_cpus */
+aff3ccd7320ee (Marc Zyngier           2022-05-28 12:38:21 +0100  762) #define ON_UNSUPPORTED_CPU	__vcpu_single_flag(sflags, BIT(2))
+eebc538d8e07e (Marc Zyngier           2022-05-28 12:38:22 +0100  763) /* WFIT instruction trapped */
+eebc538d8e07e (Marc Zyngier           2022-05-28 12:38:22 +0100  764) #define IN_WFIT			__vcpu_single_flag(sflags, BIT(3))
+30b6ab45f8133 (Marc Zyngier           2022-05-28 12:38:24 +0100  765) /* vcpu system registers loaded on physical CPU */
+30b6ab45f8133 (Marc Zyngier           2022-05-28 12:38:24 +0100  766) #define SYSREGS_ON_CPU		__vcpu_single_flag(sflags, BIT(4))
+370531d1e95be (Reiji Watanabe         2022-09-16 18:05:58 -0700  767) /* Software step state is Active-pending */
+370531d1e95be (Reiji Watanabe         2022-09-16 18:05:58 -0700  768) #define DBG_SS_ACTIVE_PENDING	__vcpu_single_flag(sflags, BIT(5))
+0c2f9acf6ae74 (Reiji Watanabe         2023-06-02 19:50:35 -0700  769) /* PMUSERENR for the guest EL0 is on physical CPU */
+0c2f9acf6ae74 (Reiji Watanabe         2023-06-02 19:50:35 -0700  770) #define PMUSERENR_ON_CPU	__vcpu_single_flag(sflags, BIT(6))
+b321c31c9b7b3 (Marc Zyngier           2023-07-13 08:06:57 +0100  771) /* WFI instruction trapped */
+b321c31c9b7b3 (Marc Zyngier           2023-07-13 08:06:57 +0100  772) #define IN_WFI			__vcpu_single_flag(sflags, BIT(7))
+370531d1e95be (Reiji Watanabe         2022-09-16 18:05:58 -0700  773) 
+0affa37fcd1d6 (Marc Zyngier           2022-05-28 12:38:20 +0100  774) 
+b43b5dd990eb2 (Dave Martin            2018-09-28 14:39:17 +0100  775) /* Pointer to the vcpu's SVE FFR for sve_{save,load}_state() */
+985d3a1beab54 (Marc Zyngier           2021-03-11 19:18:42 +0000  776) #define vcpu_sve_pffr(vcpu) (kern_hyp_va((vcpu)->arch.sve_state) +	\
+985d3a1beab54 (Marc Zyngier           2021-03-11 19:18:42 +0000  777) 			     sve_ffr_offset((vcpu)->arch.sve_max_vl))
+b43b5dd990eb2 (Dave Martin            2018-09-28 14:39:17 +0100  778) 
+bfd7fc25d3fd3 (Fuad Tabba             2023-03-23 10:16:13 +0000  779) #define _vcpu_sve_state_size(sve_max_vl) ({				\
+e1c9c98345b35 (Dave Martin            2018-09-28 14:39:19 +0100  780) 	size_t __size_ret;						\
+bfd7fc25d3fd3 (Fuad Tabba             2023-03-23 10:16:13 +0000  781) 	unsigned int __vq;						\
+e1c9c98345b35 (Dave Martin            2018-09-28 14:39:19 +0100  782) 									\
+bfd7fc25d3fd3 (Fuad Tabba             2023-03-23 10:16:13 +0000  783) 	if (WARN_ON(!sve_vl_valid(sve_max_vl))) {			\
+e1c9c98345b35 (Dave Martin            2018-09-28 14:39:19 +0100  784) 		__size_ret = 0;						\
+e1c9c98345b35 (Dave Martin            2018-09-28 14:39:19 +0100  785) 	} else {							\
+bfd7fc25d3fd3 (Fuad Tabba             2023-03-23 10:16:13 +0000  786) 		__vq = sve_vq_from_vl(sve_max_vl);			\
+bfd7fc25d3fd3 (Fuad Tabba             2023-03-23 10:16:13 +0000  787) 		__size_ret = SVE_SIG_REGS_SIZE(__vq);			\
+e1c9c98345b35 (Dave Martin            2018-09-28 14:39:19 +0100  788) 	}								\
+e1c9c98345b35 (Dave Martin            2018-09-28 14:39:19 +0100  789) 									\
+e1c9c98345b35 (Dave Martin            2018-09-28 14:39:19 +0100  790) 	__size_ret;							\
+e1c9c98345b35 (Dave Martin            2018-09-28 14:39:19 +0100  791) })
+e1c9c98345b35 (Dave Martin            2018-09-28 14:39:19 +0100  792) 
+bfd7fc25d3fd3 (Fuad Tabba             2023-03-23 10:16:13 +0000  793) #define vcpu_sve_max_vq(vcpu) sve_vq_from_vl((vcpu)->arch.sve_max_vl)
+bfd7fc25d3fd3 (Fuad Tabba             2023-03-23 10:16:13 +0000  794) 
+bfd7fc25d3fd3 (Fuad Tabba             2023-03-23 10:16:13 +0000  795) #define vcpu_sve_state_size(vcpu) _vcpu_sve_state_size((vcpu)->arch.sve_max_vl)
+bfd7fc25d3fd3 (Fuad Tabba             2023-03-23 10:16:13 +0000  796) 
+892fd259cbf6b (Marc Zyngier           2021-10-21 13:50:42 +0100  797) #define KVM_GUESTDBG_VALID_MASK (KVM_GUESTDBG_ENABLE | \
+892fd259cbf6b (Marc Zyngier           2021-10-21 13:50:42 +0100  798) 				 KVM_GUESTDBG_USE_SW_BP | \
+892fd259cbf6b (Marc Zyngier           2021-10-21 13:50:42 +0100  799) 				 KVM_GUESTDBG_USE_HW | \
+892fd259cbf6b (Marc Zyngier           2021-10-21 13:50:42 +0100  800) 				 KVM_GUESTDBG_SINGLESTEP)
+e650b64f1a56c (Marc Zyngier           2020-10-14 19:42:38 +0100  801) 
+e650b64f1a56c (Marc Zyngier           2020-10-14 19:42:38 +0100  802) #define vcpu_has_sve(vcpu) (system_supports_sve() &&			\
+4c0680d394d8a (Marc Zyngier           2022-05-28 12:38:17 +0100  803) 			    vcpu_get_flag(vcpu, GUEST_HAS_SVE))
+fa89d31c53061 (Dave Martin            2018-05-08 14:47:23 +0100  804) 
+bf4086b1a1efa (Marc Zyngier           2020-07-22 17:22:31 +0100  805) #ifdef CONFIG_ARM64_PTR_AUTH
+bf4086b1a1efa (Marc Zyngier           2020-07-22 17:22:31 +0100  806) #define vcpu_has_ptrauth(vcpu)						\
+bf4086b1a1efa (Marc Zyngier           2020-07-22 17:22:31 +0100  807) 	((cpus_have_final_cap(ARM64_HAS_ADDRESS_AUTH) ||		\
+bf4086b1a1efa (Marc Zyngier           2020-07-22 17:22:31 +0100  808) 	  cpus_have_final_cap(ARM64_HAS_GENERIC_AUTH)) &&		\
+4c0680d394d8a (Marc Zyngier           2022-05-28 12:38:17 +0100  809) 	  vcpu_get_flag(vcpu, GUEST_HAS_PTRAUTH))
+bf4086b1a1efa (Marc Zyngier           2020-07-22 17:22:31 +0100  810) #else
+bf4086b1a1efa (Marc Zyngier           2020-07-22 17:22:31 +0100  811) #define vcpu_has_ptrauth(vcpu)		false
+bf4086b1a1efa (Marc Zyngier           2020-07-22 17:22:31 +0100  812) #endif
+b890d75c4cdc9 (Amit Daniel Kachhap    2019-04-23 10:12:34 +0530  813) 
+583cda1b0e7d5 (Alexandru Elisei       2022-01-27 16:17:59 +0000  814) #define vcpu_on_unsupported_cpu(vcpu)					\
+aff3ccd7320ee (Marc Zyngier           2022-05-28 12:38:21 +0100  815) 	vcpu_get_flag(vcpu, ON_UNSUPPORTED_CPU)
+583cda1b0e7d5 (Alexandru Elisei       2022-01-27 16:17:59 +0000  816) 
+583cda1b0e7d5 (Alexandru Elisei       2022-01-27 16:17:59 +0000  817) #define vcpu_set_on_unsupported_cpu(vcpu)				\
+aff3ccd7320ee (Marc Zyngier           2022-05-28 12:38:21 +0100  818) 	vcpu_set_flag(vcpu, ON_UNSUPPORTED_CPU)
+583cda1b0e7d5 (Alexandru Elisei       2022-01-27 16:17:59 +0000  819) 
+583cda1b0e7d5 (Alexandru Elisei       2022-01-27 16:17:59 +0000  820) #define vcpu_clear_on_unsupported_cpu(vcpu)				\
+aff3ccd7320ee (Marc Zyngier           2022-05-28 12:38:21 +0100  821) 	vcpu_clear_flag(vcpu, ON_UNSUPPORTED_CPU)
+583cda1b0e7d5 (Alexandru Elisei       2022-01-27 16:17:59 +0000  822) 
+e47c2055c68e0 (Marc Zyngier           2019-06-28 22:40:58 +0100  823) #define vcpu_gp_regs(v)		(&(v)->arch.ctxt.regs)
+8d404c4c24613 (Christoffer Dall       2016-03-16 15:38:53 +0100  824) 
+8d404c4c24613 (Christoffer Dall       2016-03-16 15:38:53 +0100  825) /*
+1b422dd7fc3c8 (Marc Zyngier           2019-06-26 19:57:41 +0100  826)  * Only use __vcpu_sys_reg/ctxt_sys_reg if you know you want the
+1b422dd7fc3c8 (Marc Zyngier           2019-06-26 19:57:41 +0100  827)  * memory backed version of a register, and not the one most recently
+1b422dd7fc3c8 (Marc Zyngier           2019-06-26 19:57:41 +0100  828)  * accessed by a running VCPU.  For example, for userspace access or
+1b422dd7fc3c8 (Marc Zyngier           2019-06-26 19:57:41 +0100  829)  * for system registers that are never context switched, but only
+1b422dd7fc3c8 (Marc Zyngier           2019-06-26 19:57:41 +0100  830)  * emulated.
+8d404c4c24613 (Christoffer Dall       2016-03-16 15:38:53 +0100  831)  */
+1b422dd7fc3c8 (Marc Zyngier           2019-06-26 19:57:41 +0100  832) #define __ctxt_sys_reg(c,r)	(&(c)->sys_regs[(r)])
+1b422dd7fc3c8 (Marc Zyngier           2019-06-26 19:57:41 +0100  833) 
+1b422dd7fc3c8 (Marc Zyngier           2019-06-26 19:57:41 +0100  834) #define ctxt_sys_reg(c,r)	(*__ctxt_sys_reg(c,r))
+1b422dd7fc3c8 (Marc Zyngier           2019-06-26 19:57:41 +0100  835) 
+1b422dd7fc3c8 (Marc Zyngier           2019-06-26 19:57:41 +0100  836) #define __vcpu_sys_reg(v,r)	(ctxt_sys_reg(&(v)->arch.ctxt, (r)))
+8d404c4c24613 (Christoffer Dall       2016-03-16 15:38:53 +0100  837) 
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  838) static inline bool __vcpu_read_sys_reg_from_cpu(int reg, u64 *val)
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  839) {
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  840) 	/*
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  841) 	 * *** VHE ONLY ***
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  842) 	 *
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  843) 	 * System registers listed in the switch are not saved on every
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  844) 	 * exit from the guest but are only saved on vcpu_put.
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  845) 	 *
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  846) 	 * Note that MPIDR_EL1 for the guest is set by KVM via VMPIDR_EL2 but
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  847) 	 * should never be listed below, because the guest cannot modify its
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  848) 	 * own MPIDR_EL1 and MPIDR_EL1 is accessed for VCPU A from VCPU B's
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  849) 	 * thread when emulating cross-VCPU communication.
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  850) 	 */
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  851) 	if (!has_vhe())
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  852) 		return false;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  853) 
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  854) 	switch (reg) {
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  855) 	case SCTLR_EL1:		*val = read_sysreg_s(SYS_SCTLR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  856) 	case CPACR_EL1:		*val = read_sysreg_s(SYS_CPACR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  857) 	case TTBR0_EL1:		*val = read_sysreg_s(SYS_TTBR0_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  858) 	case TTBR1_EL1:		*val = read_sysreg_s(SYS_TTBR1_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  859) 	case TCR_EL1:		*val = read_sysreg_s(SYS_TCR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  860) 	case ESR_EL1:		*val = read_sysreg_s(SYS_ESR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  861) 	case AFSR0_EL1:		*val = read_sysreg_s(SYS_AFSR0_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  862) 	case AFSR1_EL1:		*val = read_sysreg_s(SYS_AFSR1_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  863) 	case FAR_EL1:		*val = read_sysreg_s(SYS_FAR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  864) 	case MAIR_EL1:		*val = read_sysreg_s(SYS_MAIR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  865) 	case VBAR_EL1:		*val = read_sysreg_s(SYS_VBAR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  866) 	case CONTEXTIDR_EL1:	*val = read_sysreg_s(SYS_CONTEXTIDR_EL12);break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  867) 	case TPIDR_EL0:		*val = read_sysreg_s(SYS_TPIDR_EL0);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  868) 	case TPIDRRO_EL0:	*val = read_sysreg_s(SYS_TPIDRRO_EL0);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  869) 	case TPIDR_EL1:		*val = read_sysreg_s(SYS_TPIDR_EL1);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  870) 	case AMAIR_EL1:		*val = read_sysreg_s(SYS_AMAIR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  871) 	case CNTKCTL_EL1:	*val = read_sysreg_s(SYS_CNTKCTL_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  872) 	case ELR_EL1:		*val = read_sysreg_s(SYS_ELR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  873) 	case PAR_EL1:		*val = read_sysreg_par();		break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  874) 	case DACR32_EL2:	*val = read_sysreg_s(SYS_DACR32_EL2);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  875) 	case IFSR32_EL2:	*val = read_sysreg_s(SYS_IFSR32_EL2);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  876) 	case DBGVCR32_EL2:	*val = read_sysreg_s(SYS_DBGVCR32_EL2);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  877) 	default:		return false;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  878) 	}
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  879) 
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  880) 	return true;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  881) }
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  882) 
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  883) static inline bool __vcpu_write_sys_reg_to_cpu(u64 val, int reg)
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  884) {
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  885) 	/*
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  886) 	 * *** VHE ONLY ***
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  887) 	 *
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  888) 	 * System registers listed in the switch are not restored on every
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  889) 	 * entry to the guest but are only restored on vcpu_load.
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  890) 	 *
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  891) 	 * Note that MPIDR_EL1 for the guest is set by KVM via VMPIDR_EL2 but
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  892) 	 * should never be listed below, because the MPIDR should only be set
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  893) 	 * once, before running the VCPU, and never changed later.
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  894) 	 */
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  895) 	if (!has_vhe())
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  896) 		return false;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  897) 
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  898) 	switch (reg) {
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  899) 	case SCTLR_EL1:		write_sysreg_s(val, SYS_SCTLR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  900) 	case CPACR_EL1:		write_sysreg_s(val, SYS_CPACR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  901) 	case TTBR0_EL1:		write_sysreg_s(val, SYS_TTBR0_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  902) 	case TTBR1_EL1:		write_sysreg_s(val, SYS_TTBR1_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  903) 	case TCR_EL1:		write_sysreg_s(val, SYS_TCR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  904) 	case ESR_EL1:		write_sysreg_s(val, SYS_ESR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  905) 	case AFSR0_EL1:		write_sysreg_s(val, SYS_AFSR0_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  906) 	case AFSR1_EL1:		write_sysreg_s(val, SYS_AFSR1_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  907) 	case FAR_EL1:		write_sysreg_s(val, SYS_FAR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  908) 	case MAIR_EL1:		write_sysreg_s(val, SYS_MAIR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  909) 	case VBAR_EL1:		write_sysreg_s(val, SYS_VBAR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  910) 	case CONTEXTIDR_EL1:	write_sysreg_s(val, SYS_CONTEXTIDR_EL12);break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  911) 	case TPIDR_EL0:		write_sysreg_s(val, SYS_TPIDR_EL0);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  912) 	case TPIDRRO_EL0:	write_sysreg_s(val, SYS_TPIDRRO_EL0);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  913) 	case TPIDR_EL1:		write_sysreg_s(val, SYS_TPIDR_EL1);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  914) 	case AMAIR_EL1:		write_sysreg_s(val, SYS_AMAIR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  915) 	case CNTKCTL_EL1:	write_sysreg_s(val, SYS_CNTKCTL_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  916) 	case ELR_EL1:		write_sysreg_s(val, SYS_ELR_EL12);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  917) 	case PAR_EL1:		write_sysreg_s(val, SYS_PAR_EL1);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  918) 	case DACR32_EL2:	write_sysreg_s(val, SYS_DACR32_EL2);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  919) 	case IFSR32_EL2:	write_sysreg_s(val, SYS_IFSR32_EL2);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  920) 	case DBGVCR32_EL2:	write_sysreg_s(val, SYS_DBGVCR32_EL2);	break;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  921) 	default:		return false;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  922) 	}
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  923) 
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  924) 	return true;
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  925) }
+21c810017cef7 (Marc Zyngier           2020-10-14 19:36:11 +0100  926) 
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  927) #define vcpu_read_sys_reg(__vcpu, reg)					\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  928) 	({								\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  929) 		u64 __val = 0x8badf00d8badf00d;				\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  930) 									\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  931) 		/* SYSREGS_ON_CPU is only used in VHE */		\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  932) 		((!is_nvhe_hyp_code() &&				\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  933) 		  vcpu_get_flag(__vcpu, SYSREGS_ON_CPU) &&		\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  934) 		  __vcpu_read_sys_reg_from_cpu(reg, &__val))) ?		\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  935) 		 __val							\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  936) 		 :							\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  937) 		 ctxt_sys_reg(&__vcpu->arch.ctxt, reg);			\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  938) 	 })
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  939) 
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  940) #define vcpu_write_sys_reg(__vcpu, __val, reg)				\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  941) 	do {								\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  942) 		/* SYSREGS_ON_CPU is only used in VHE */		\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  943) 		if (is_nvhe_hyp_code() ||				\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  944) 		    !vcpu_get_flag(__vcpu, SYSREGS_ON_CPU) ||		\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  945) 		    !__vcpu_write_sys_reg_to_cpu(__val, reg))		\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  946) 			ctxt_sys_reg(&__vcpu->arch.ctxt, reg) = __val;	\
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  947) 	} while (0)
+db33cda4b3391 (Marc Zyngier           2022-04-13 16:44:51 +0100  948) 
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  949) struct kvm_vm_stat {
+0193cc908b5ae (Jing Zhang             2021-06-18 22:27:03 +0000  950) 	struct kvm_vm_stat_generic generic;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  951) };
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  952) 
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  953) struct kvm_vcpu_stat {
+0193cc908b5ae (Jing Zhang             2021-06-18 22:27:03 +0000  954) 	struct kvm_vcpu_stat_generic generic;
+8a7e75d47b681 (Suraj Jitindar Singh   2016-08-02 14:03:22 +1000  955) 	u64 hvc_exit_stat;
+b19e6892a90e7 (Amit Tomar             2015-11-26 10:09:43 +0000  956) 	u64 wfe_exit_stat;
+b19e6892a90e7 (Amit Tomar             2015-11-26 10:09:43 +0000  957) 	u64 wfi_exit_stat;
+b19e6892a90e7 (Amit Tomar             2015-11-26 10:09:43 +0000  958) 	u64 mmio_exit_user;
+b19e6892a90e7 (Amit Tomar             2015-11-26 10:09:43 +0000  959) 	u64 mmio_exit_kernel;
+fe5161d2c39b8 (Oliver Upton           2021-08-02 19:28:07 +0000  960) 	u64 signal_exits;
+b19e6892a90e7 (Amit Tomar             2015-11-26 10:09:43 +0000  961) 	u64 exits;
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  962) };
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  963) 
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  964) unsigned long kvm_arm_num_regs(struct kvm_vcpu *vcpu);
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  965) int kvm_arm_copy_reg_indices(struct kvm_vcpu *vcpu, u64 __user *indices);
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  966) int kvm_arm_get_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg);
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  967) int kvm_arm_set_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg);
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000  968) 
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000  969) unsigned long kvm_arm_num_sys_reg_descs(struct kvm_vcpu *vcpu);
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000  970) int kvm_arm_copy_sys_reg_indices(struct kvm_vcpu *vcpu, u64 __user *uindices);
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000  971) 
+539aee0edb9fd (James Morse            2018-07-19 16:24:24 +0100  972) int __kvm_arm_vcpu_get_events(struct kvm_vcpu *vcpu,
+539aee0edb9fd (James Morse            2018-07-19 16:24:24 +0100  973) 			      struct kvm_vcpu_events *events);
+b7b27facc7b50 (Dongjiu Geng           2018-07-19 16:24:22 +0100  974) 
+539aee0edb9fd (James Morse            2018-07-19 16:24:24 +0100  975) int __kvm_arm_vcpu_set_events(struct kvm_vcpu *vcpu,
+539aee0edb9fd (James Morse            2018-07-19 16:24:24 +0100  976) 			      struct kvm_vcpu_events *events);
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  977) 
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  978) #define KVM_ARCH_WANT_MMU_NOTIFIER
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  979) 
+b13216cf6010e (Christoffer Dall       2016-04-27 10:28:00 +0100  980) void kvm_arm_halt_guest(struct kvm *kvm);
+b13216cf6010e (Christoffer Dall       2016-04-27 10:28:00 +0100  981) void kvm_arm_resume_guest(struct kvm *kvm);
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000  982) 
+cc5705fb1bf11 (Marc Zyngier           2021-10-14 12:13:06 +0100  983) #define vcpu_has_run_once(vcpu)	!!rcu_access_pointer((vcpu)->pid)
+cc5705fb1bf11 (Marc Zyngier           2021-10-14 12:13:06 +0100  984) 
+40a50853d37af (Quentin Perret         2021-03-19 10:01:16 +0000  985) #ifndef __KVM_NVHE_HYPERVISOR__
+054698316d87a (Andrew Scull           2020-09-15 11:46:41 +0100  986) #define kvm_call_hyp_nvhe(f, ...)						\
+f50b6f6ae131b (Andrew Scull           2020-06-25 14:14:10 +0100  987) 	({								\
+054698316d87a (Andrew Scull           2020-09-15 11:46:41 +0100  988) 		struct arm_smccc_res res;				\
+054698316d87a (Andrew Scull           2020-09-15 11:46:41 +0100  989) 									\
+054698316d87a (Andrew Scull           2020-09-15 11:46:41 +0100  990) 		arm_smccc_1_1_hvc(KVM_HOST_SMCCC_FUNC(f),		\
+054698316d87a (Andrew Scull           2020-09-15 11:46:41 +0100  991) 				  ##__VA_ARGS__, &res);			\
+054698316d87a (Andrew Scull           2020-09-15 11:46:41 +0100  992) 		WARN_ON(res.a0 != SMCCC_RET_SUCCESS);			\
+054698316d87a (Andrew Scull           2020-09-15 11:46:41 +0100  993) 									\
+054698316d87a (Andrew Scull           2020-09-15 11:46:41 +0100  994) 		res.a1;							\
+f50b6f6ae131b (Andrew Scull           2020-06-25 14:14:10 +0100  995) 	})
+f50b6f6ae131b (Andrew Scull           2020-06-25 14:14:10 +0100  996) 
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000  997) /*
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000  998)  * The couple of isb() below are there to guarantee the same behaviour
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000  999)  * on VHE as on !VHE, where the eret to EL1 acts as a context
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1000)  * synchronization event.
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1001)  */
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1002) #define kvm_call_hyp(f, ...)						\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1003) 	do {								\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1004) 		if (has_vhe()) {					\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1005) 			f(__VA_ARGS__);					\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1006) 			isb();						\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1007) 		} else {						\
+f50b6f6ae131b (Andrew Scull           2020-06-25 14:14:10 +0100 1008) 			kvm_call_hyp_nvhe(f, ##__VA_ARGS__);		\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1009) 		}							\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1010) 	} while(0)
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1011) 
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1012) #define kvm_call_hyp_ret(f, ...)					\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1013) 	({								\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1014) 		typeof(f(__VA_ARGS__)) ret;				\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1015) 									\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1016) 		if (has_vhe()) {					\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1017) 			ret = f(__VA_ARGS__);				\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1018) 			isb();						\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1019) 		} else {						\
+054698316d87a (Andrew Scull           2020-09-15 11:46:41 +0100 1020) 			ret = kvm_call_hyp_nvhe(f, ##__VA_ARGS__);	\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1021) 		}							\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1022) 									\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1023) 		ret;							\
+18fc7bf8e0412 (Marc Zyngier           2019-01-05 15:57:56 +0000 1024) 	})
+40a50853d37af (Quentin Perret         2021-03-19 10:01:16 +0000 1025) #else /* __KVM_NVHE_HYPERVISOR__ */
+40a50853d37af (Quentin Perret         2021-03-19 10:01:16 +0000 1026) #define kvm_call_hyp(f, ...) f(__VA_ARGS__)
+40a50853d37af (Quentin Perret         2021-03-19 10:01:16 +0000 1027) #define kvm_call_hyp_ret(f, ...) f(__VA_ARGS__)
+40a50853d37af (Quentin Perret         2021-03-19 10:01:16 +0000 1028) #define kvm_call_hyp_nvhe(f, ...) f(__VA_ARGS__)
+40a50853d37af (Quentin Perret         2021-03-19 10:01:16 +0000 1029) #endif /* __KVM_NVHE_HYPERVISOR__ */
+22b39ca3f22ac (Marc Zyngier           2016-03-01 13:12:44 +0000 1030) 
+74cc7e0c35c1e (Tianjia Zhang          2020-06-23 21:14:15 +0800 1031) int handle_exit(struct kvm_vcpu *vcpu, int exception_index);
+74cc7e0c35c1e (Tianjia Zhang          2020-06-23 21:14:15 +0800 1032) void handle_exit_early(struct kvm_vcpu *vcpu, int exception_index);
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000 1033) 
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000 1034) int kvm_handle_cp14_load_store(struct kvm_vcpu *vcpu);
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000 1035) int kvm_handle_cp14_32(struct kvm_vcpu *vcpu);
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000 1036) int kvm_handle_cp14_64(struct kvm_vcpu *vcpu);
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000 1037) int kvm_handle_cp15_32(struct kvm_vcpu *vcpu);
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000 1038) int kvm_handle_cp15_64(struct kvm_vcpu *vcpu);
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000 1039) int kvm_handle_sys_reg(struct kvm_vcpu *vcpu);
+9369bc5c5e359 (Oliver Upton           2022-05-03 06:02:02 +0000 1040) int kvm_handle_cp10_id(struct kvm_vcpu *vcpu);
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000 1041) 
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000 1042) void kvm_reset_sys_regs(struct kvm_vcpu *vcpu);
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000 1043) 
+8d20bd6381670 (Sean Christopherson    2022-11-30 23:09:18 +0000 1044) int __init kvm_sys_reg_table_init(void);
+e58ec47bf68d2 (Marc Zyngier           2023-08-15 19:38:48 +0100 1045) int __init populate_nv_trap_config(void);
+6ac4a5ac50d1d (Marc Zyngier           2020-11-02 18:11:16 +0000 1046) 
+96906a9150a86 (Marc Zyngier           2023-03-30 18:47:46 +0100 1047) bool lock_all_vcpus(struct kvm *kvm);
+96906a9150a86 (Marc Zyngier           2023-03-30 18:47:46 +0100 1048) void unlock_all_vcpus(struct kvm *kvm);
+96906a9150a86 (Marc Zyngier           2023-03-30 18:47:46 +0100 1049) 
+0e20f5e25556c (Marc Zyngier           2019-12-13 13:25:25 +0000 1050) /* MMIO helpers */
+0e20f5e25556c (Marc Zyngier           2019-12-13 13:25:25 +0000 1051) void kvm_mmio_write_buf(void *buf, unsigned int len, unsigned long data);
+0e20f5e25556c (Marc Zyngier           2019-12-13 13:25:25 +0000 1052) unsigned long kvm_mmio_read_buf(const void *buf, unsigned int len);
+0e20f5e25556c (Marc Zyngier           2019-12-13 13:25:25 +0000 1053) 
+74cc7e0c35c1e (Tianjia Zhang          2020-06-23 21:14:15 +0800 1054) int kvm_handle_mmio_return(struct kvm_vcpu *vcpu);
+74cc7e0c35c1e (Tianjia Zhang          2020-06-23 21:14:15 +0800 1055) int io_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa);
+0e20f5e25556c (Marc Zyngier           2019-12-13 13:25:25 +0000 1056) 
+e1bfc24577cc6 (Sean Christopherson    2021-11-11 02:07:33 +0000 1057) /*
+e1bfc24577cc6 (Sean Christopherson    2021-11-11 02:07:33 +0000 1058)  * Returns true if a Performance Monitoring Interrupt (PMI), a.k.a. perf event,
+e1bfc24577cc6 (Sean Christopherson    2021-11-11 02:07:33 +0000 1059)  * arrived in guest context.  For arm64, any event that arrives while a vCPU is
+e1bfc24577cc6 (Sean Christopherson    2021-11-11 02:07:33 +0000 1060)  * loaded is considered to be "in guest".
+e1bfc24577cc6 (Sean Christopherson    2021-11-11 02:07:33 +0000 1061)  */
+e1bfc24577cc6 (Sean Christopherson    2021-11-11 02:07:33 +0000 1062) static inline bool kvm_arch_pmi_in_guest(struct kvm_vcpu *vcpu)
+e1bfc24577cc6 (Sean Christopherson    2021-11-11 02:07:33 +0000 1063) {
+e1bfc24577cc6 (Sean Christopherson    2021-11-11 02:07:33 +0000 1064) 	return IS_ENABLED(CONFIG_GUEST_PERF_EVENTS) && !!vcpu;
+e1bfc24577cc6 (Sean Christopherson    2021-11-11 02:07:33 +0000 1065) }
+e1bfc24577cc6 (Sean Christopherson    2021-11-11 02:07:33 +0000 1066) 
+b48c1a45a1908 (Steven Price           2019-10-21 16:28:16 +0100 1067) long kvm_hypercall_pv_features(struct kvm_vcpu *vcpu);
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100 1068) gpa_t kvm_init_stolen_time(struct kvm_vcpu *vcpu);
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100 1069) void kvm_update_stolen_time(struct kvm_vcpu *vcpu);
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100 1070) 
+004a01241c5a0 (Andrew Jones           2020-08-04 19:06:04 +0200 1071) bool kvm_arm_pvtime_supported(void);
+58772e9a3db72 (Steven Price           2019-10-21 16:28:20 +0100 1072) int kvm_arm_pvtime_set_attr(struct kvm_vcpu *vcpu,
+58772e9a3db72 (Steven Price           2019-10-21 16:28:20 +0100 1073) 			    struct kvm_device_attr *attr);
+58772e9a3db72 (Steven Price           2019-10-21 16:28:20 +0100 1074) int kvm_arm_pvtime_get_attr(struct kvm_vcpu *vcpu,
+58772e9a3db72 (Steven Price           2019-10-21 16:28:20 +0100 1075) 			    struct kvm_device_attr *attr);
+58772e9a3db72 (Steven Price           2019-10-21 16:28:20 +0100 1076) int kvm_arm_pvtime_has_attr(struct kvm_vcpu *vcpu,
+58772e9a3db72 (Steven Price           2019-10-21 16:28:20 +0100 1077) 			    struct kvm_device_attr *attr);
+58772e9a3db72 (Steven Price           2019-10-21 16:28:20 +0100 1078) 
+8d20bd6381670 (Sean Christopherson    2022-11-30 23:09:18 +0000 1079) extern unsigned int __ro_after_init kvm_arm_vmid_bits;
+8d20bd6381670 (Sean Christopherson    2022-11-30 23:09:18 +0000 1080) int __init kvm_arm_vmid_alloc_init(void);
+8d20bd6381670 (Sean Christopherson    2022-11-30 23:09:18 +0000 1081) void __init kvm_arm_vmid_alloc_free(void);
+417838392f2e6 (Shameer Kolothum       2021-11-22 12:18:41 +0000 1082) void kvm_arm_vmid_update(struct kvm_vmid *kvm_vmid);
+100b4f092f878 (Shameer Kolothum       2021-11-22 12:18:44 +0000 1083) void kvm_arm_vmid_clear_active(void);
+417838392f2e6 (Shameer Kolothum       2021-11-22 12:18:41 +0000 1084) 
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100 1085) static inline void kvm_arm_pvtime_vcpu_init(struct kvm_vcpu_arch *vcpu_arch)
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100 1086) {
+cecafc0a830f7 (Yu Zhang               2023-01-05 21:01:27 +0800 1087) 	vcpu_arch->steal.base = INVALID_GPA;
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100 1088) }
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100 1089) 
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100 1090) static inline bool kvm_arm_is_pvtime_enabled(struct kvm_vcpu_arch *vcpu_arch)
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100 1091) {
+cecafc0a830f7 (Yu Zhang               2023-01-05 21:01:27 +0800 1092) 	return (vcpu_arch->steal.base != INVALID_GPA);
+8564d6372a7d8 (Steven Price           2019-10-21 16:28:18 +0100 1093) }
+b48c1a45a1908 (Steven Price           2019-10-21 16:28:16 +0100 1094) 
+b7b27facc7b50 (Dongjiu Geng           2018-07-19 16:24:22 +0100 1095) void kvm_set_sei_esr(struct kvm_vcpu *vcpu, u64 syndrome);
+b7b27facc7b50 (Dongjiu Geng           2018-07-19 16:24:22 +0100 1096) 
+4429fc64b9036 (Andre Przywara         2014-06-02 15:37:13 +0200 1097) struct kvm_vcpu *kvm_mpidr_to_vcpu(struct kvm *kvm, unsigned long mpidr);
+4429fc64b9036 (Andre Przywara         2014-06-02 15:37:13 +0200 1098) 
+14ef9d04928b6 (Marc Zyngier           2020-09-30 14:05:35 +0100 1099) DECLARE_KVM_HYP_PER_CPU(struct kvm_host_data, kvm_host_data);
+4464e210de9e8 (Christoffer Dall       2017-10-08 17:01:56 +0200 1100) 
+1e0cf16cdad1b (Marc Zyngier           2019-07-05 23:35:56 +0100 1101) static inline void kvm_init_host_cpu_context(struct kvm_cpu_context *cpu_ctxt)
+32f1395519545 (Marc Zyngier           2019-01-19 15:29:54 +0000 1102) {
+32f1395519545 (Marc Zyngier           2019-01-19 15:29:54 +0000 1103) 	/* The host's MPIDR is immutable, so let's set it up at boot time */
+71071acfd392c (Marc Zyngier           2020-04-12 14:00:43 +0100 1104) 	ctxt_sys_reg(cpu_ctxt, MPIDR_EL1) = read_cpuid_mpidr();
+32f1395519545 (Marc Zyngier           2019-01-19 15:29:54 +0000 1105) }
+32f1395519545 (Marc Zyngier           2019-01-19 15:29:54 +0000 1106) 
+5bdf3437603d4 (James Morse            2021-11-16 15:06:19 +0000 1107) static inline bool kvm_system_needs_idmapped_vectors(void)
+5bdf3437603d4 (James Morse            2021-11-16 15:06:19 +0000 1108) {
+5bdf3437603d4 (James Morse            2021-11-16 15:06:19 +0000 1109) 	return cpus_have_const_cap(ARM64_SPECTRE_V3A);
+5bdf3437603d4 (James Morse            2021-11-16 15:06:19 +0000 1110) }
+5bdf3437603d4 (James Morse            2021-11-16 15:06:19 +0000 1111) 
+0865e636aef75 (Radim Krčmář           2014-08-28 15:13:02 +0200 1112) static inline void kvm_arch_sync_events(struct kvm *kvm) {}
+0865e636aef75 (Radim Krčmář           2014-08-28 15:13:02 +0200 1113) static inline void kvm_arch_sched_in(struct kvm_vcpu *vcpu, int cpu) {}
+0865e636aef75 (Radim Krčmář           2014-08-28 15:13:02 +0200 1114) 
+56c7f5e77f797 (Alex Bennée            2015-07-07 17:29:56 +0100 1115) void kvm_arm_init_debug(void);
+263d6287da143 (Alexandru Elisei       2021-04-07 15:48:57 +0100 1116) void kvm_arm_vcpu_init_debug(struct kvm_vcpu *vcpu);
+56c7f5e77f797 (Alex Bennée            2015-07-07 17:29:56 +0100 1117) void kvm_arm_setup_debug(struct kvm_vcpu *vcpu);
+56c7f5e77f797 (Alex Bennée            2015-07-07 17:29:56 +0100 1118) void kvm_arm_clear_debug(struct kvm_vcpu *vcpu);
+84e690bfbed1d (Alex Bennée            2015-07-07 17:30:00 +0100 1119) void kvm_arm_reset_debug_ptr(struct kvm_vcpu *vcpu);
+7dabf02f43a16 (Oliver Upton           2022-02-03 17:41:57 +0000 1120) 
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1121) #define __vcpu_save_guest_debug_regs(vcpu)				\
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1122) 	do {								\
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1123) 		u64 val = vcpu_read_sys_reg(vcpu, MDSCR_EL1);		\
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1124) 									\
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1125) 		(vcpu)->arch.guest_debug_preserved.mdscr_el1 = val;	\
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1126) 	} while(0)
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1127) 
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1128) #define __vcpu_restore_guest_debug_regs(vcpu)				\
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1129) 	do {								\
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1130) 		u64 val = (vcpu)->arch.guest_debug_preserved.mdscr_el1;	\
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1131) 									\
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1132) 		vcpu_write_sys_reg(vcpu, val, MDSCR_EL1);		\
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1133) 	} while (0)
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1134) 
+7dabf02f43a16 (Oliver Upton           2022-02-03 17:41:57 +0000 1135) #define kvm_vcpu_os_lock_enabled(vcpu)		\
+187de7c2aad86 (Mark Brown             2023-05-23 19:37:01 +0100 1136) 	(!!(__vcpu_sys_reg(vcpu, OSLSR_EL1) & OSLSR_EL1_OSLK))
+7dabf02f43a16 (Oliver Upton           2022-02-03 17:41:57 +0000 1137) 
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1138) #define kvm_vcpu_needs_debug_regs(vcpu)		\
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1139) 	((vcpu)->guest_debug || kvm_vcpu_os_lock_enabled(vcpu))
+07cf0290fd12d (Fuad Tabba             2022-05-25 14:52:00 +0000 1140) 
+bb0c70bcca6ba (Shannon Zhao           2016-01-11 21:35:32 +0800 1141) int kvm_arm_vcpu_arch_set_attr(struct kvm_vcpu *vcpu,
+bb0c70bcca6ba (Shannon Zhao           2016-01-11 21:35:32 +0800 1142) 			       struct kvm_device_attr *attr);
+bb0c70bcca6ba (Shannon Zhao           2016-01-11 21:35:32 +0800 1143) int kvm_arm_vcpu_arch_get_attr(struct kvm_vcpu *vcpu,
+bb0c70bcca6ba (Shannon Zhao           2016-01-11 21:35:32 +0800 1144) 			       struct kvm_device_attr *attr);
+bb0c70bcca6ba (Shannon Zhao           2016-01-11 21:35:32 +0800 1145) int kvm_arm_vcpu_arch_has_attr(struct kvm_vcpu *vcpu,
+bb0c70bcca6ba (Shannon Zhao           2016-01-11 21:35:32 +0800 1146) 			       struct kvm_device_attr *attr);
+56c7f5e77f797 (Alex Bennée            2015-07-07 17:29:56 +0100 1147) 
+2def950c63e3f (Thomas Huth            2023-02-08 15:01:03 +0100 1148) int kvm_vm_ioctl_mte_copy_tags(struct kvm *kvm,
+2def950c63e3f (Thomas Huth            2023-02-08 15:01:03 +0100 1149) 			       struct kvm_arm_copy_mte_tags *copy_tags);
+30ec7997d175c (Marc Zyngier           2023-03-30 18:47:47 +0100 1150) int kvm_vm_ioctl_set_counter_offset(struct kvm *kvm,
+30ec7997d175c (Marc Zyngier           2023-03-30 18:47:47 +0100 1151) 				    struct kvm_arm_counter_offset *offset);
+f0376edb1ddca (Steven Price           2021-06-21 12:17:15 +0100 1152) 
+e6b673b741ea0 (Dave Martin            2018-04-06 14:55:59 +0100 1153) /* Guest/host FPSIMD coordination helpers */
+e6b673b741ea0 (Dave Martin            2018-04-06 14:55:59 +0100 1154) int kvm_arch_vcpu_run_map_fp(struct kvm_vcpu *vcpu);
+e6b673b741ea0 (Dave Martin            2018-04-06 14:55:59 +0100 1155) void kvm_arch_vcpu_load_fp(struct kvm_vcpu *vcpu);
+af9a0e21d817f (Marc Zyngier           2021-10-21 14:10:35 +0100 1156) void kvm_arch_vcpu_ctxflush_fp(struct kvm_vcpu *vcpu);
+e6b673b741ea0 (Dave Martin            2018-04-06 14:55:59 +0100 1157) void kvm_arch_vcpu_ctxsync_fp(struct kvm_vcpu *vcpu);
+e6b673b741ea0 (Dave Martin            2018-04-06 14:55:59 +0100 1158) void kvm_arch_vcpu_put_fp(struct kvm_vcpu *vcpu);
+e6b673b741ea0 (Dave Martin            2018-04-06 14:55:59 +0100 1159) 
+eb41238cf19fd (Andrew Murray          2019-04-09 20:22:12 +0100 1160) static inline bool kvm_pmu_counter_deferred(struct perf_event_attr *attr)
+eb41238cf19fd (Andrew Murray          2019-04-09 20:22:12 +0100 1161) {
+435e53fb5e21a (Andrew Murray          2019-04-09 20:22:15 +0100 1162) 	return (!has_vhe() && attr->exclude_host);
+eb41238cf19fd (Andrew Murray          2019-04-09 20:22:12 +0100 1163) }
+eb41238cf19fd (Andrew Murray          2019-04-09 20:22:12 +0100 1164) 
+d2602bb4f5a45 (Suzuki K Poulose       2021-04-05 17:42:53 +0100 1165) /* Flags for host debug state */
+d2602bb4f5a45 (Suzuki K Poulose       2021-04-05 17:42:53 +0100 1166) void kvm_arch_vcpu_load_debug_state_flags(struct kvm_vcpu *vcpu);
+d2602bb4f5a45 (Suzuki K Poulose       2021-04-05 17:42:53 +0100 1167) void kvm_arch_vcpu_put_debug_state_flags(struct kvm_vcpu *vcpu);
+d2602bb4f5a45 (Suzuki K Poulose       2021-04-05 17:42:53 +0100 1168) 
+052f064d42b7b (Marc Zyngier           2021-10-14 11:30:42 +0100 1169) #ifdef CONFIG_KVM
+eb41238cf19fd (Andrew Murray          2019-04-09 20:22:12 +0100 1170) void kvm_set_pmu_events(u32 set, struct perf_event_attr *attr);
+eb41238cf19fd (Andrew Murray          2019-04-09 20:22:12 +0100 1171) void kvm_clr_pmu_events(u32 clr);
+0c2f9acf6ae74 (Reiji Watanabe         2023-06-02 19:50:35 -0700 1172) bool kvm_set_pmuserenr(u64 val);
+eb41238cf19fd (Andrew Murray          2019-04-09 20:22:12 +0100 1173) #else
+eb41238cf19fd (Andrew Murray          2019-04-09 20:22:12 +0100 1174) static inline void kvm_set_pmu_events(u32 set, struct perf_event_attr *attr) {}
+eb41238cf19fd (Andrew Murray          2019-04-09 20:22:12 +0100 1175) static inline void kvm_clr_pmu_events(u32 clr) {}
+0c2f9acf6ae74 (Reiji Watanabe         2023-06-02 19:50:35 -0700 1176) static inline bool kvm_set_pmuserenr(u64 val)
+0c2f9acf6ae74 (Reiji Watanabe         2023-06-02 19:50:35 -0700 1177) {
+0c2f9acf6ae74 (Reiji Watanabe         2023-06-02 19:50:35 -0700 1178) 	return false;
+0c2f9acf6ae74 (Reiji Watanabe         2023-06-02 19:50:35 -0700 1179) }
+e6b673b741ea0 (Dave Martin            2018-04-06 14:55:59 +0100 1180) #endif
+17eed27b02da8 (Dave Martin            2017-10-31 15:51:16 +0000 1181) 
+13aeb9b400c5d (David Brazdil          2020-06-25 14:14:16 +0100 1182) void kvm_vcpu_load_sysregs_vhe(struct kvm_vcpu *vcpu);
+13aeb9b400c5d (David Brazdil          2020-06-25 14:14:16 +0100 1183) void kvm_vcpu_put_sysregs_vhe(struct kvm_vcpu *vcpu);
+bc192ceec3710 (Christoffer Dall       2017-10-10 10:21:18 +0200 1184) 
+8d20bd6381670 (Sean Christopherson    2022-11-30 23:09:18 +0000 1185) int __init kvm_set_ipa_limit(void);
+0f62f0e95be29 (Suzuki K Poulose       2018-09-26 17:32:52 +0100 1186) 
+d1e5b0e98ea27 (Marc Orr               2018-05-15 04:37:37 -0700 1187) #define __KVM_HAVE_ARCH_VM_ALLOC
+d1e5b0e98ea27 (Marc Orr               2018-05-15 04:37:37 -0700 1188) struct kvm *kvm_arch_alloc_vm(void);
+d1e5b0e98ea27 (Marc Orr               2018-05-15 04:37:37 -0700 1189) 
+32121c813818a (Raghavendra Rao Ananta 2023-08-11 04:51:16 +0000 1190) #define __KVM_HAVE_ARCH_FLUSH_REMOTE_TLBS
+32121c813818a (Raghavendra Rao Ananta 2023-08-11 04:51:16 +0000 1191) 
+c42b6f0b1cde4 (Raghavendra Rao Ananta 2023-08-11 04:51:24 +0000 1192) #define __KVM_HAVE_ARCH_FLUSH_REMOTE_TLBS_RANGE
+c42b6f0b1cde4 (Raghavendra Rao Ananta 2023-08-11 04:51:24 +0000 1193) 
+db291ec44aaef (Marc Zyngier           2022-04-20 11:10:17 +0100 1194) #define kvm_vm_is_protected(kvm)	((kvm)->arch.pkvm.enabled)
+2ea7f655800b0 (Fuad Tabba             2021-08-17 09:11:20 +0100 1195) 
+92e68b2b1ba00 (Dave Martin            2019-04-10 17:17:37 +0100 1196) int kvm_arm_vcpu_finalize(struct kvm_vcpu *vcpu, int feature);
+9033bba4b5352 (Dave Martin            2019-02-28 18:46:44 +0000 1197) bool kvm_arm_vcpu_is_finalized(struct kvm_vcpu *vcpu);
+9033bba4b5352 (Dave Martin            2019-02-28 18:46:44 +0000 1198) 
+4c0680d394d8a (Marc Zyngier           2022-05-28 12:38:17 +0100 1199) #define kvm_arm_vcpu_sve_finalized(vcpu) vcpu_get_flag(vcpu, VCPU_SVE_FINALIZED)
+7dd32a0d0103a (Dave Martin            2018-12-19 14:27:01 +0000 1200) 
+06394531b4257 (Marc Zyngier           2022-03-11 17:39:47 +0000 1201) #define kvm_has_mte(kvm)					\
+06394531b4257 (Marc Zyngier           2022-03-11 17:39:47 +0000 1202) 	(system_supports_mte() &&				\
+06394531b4257 (Marc Zyngier           2022-03-11 17:39:47 +0000 1203) 	 test_bit(KVM_ARCH_FLAG_MTE_ENABLED, &(kvm)->arch.flags))
+14bda7a927336 (Marc Zyngier           2020-11-13 16:39:44 +0000 1204) 
+f3c6efc72f3b2 (Oliver Upton           2022-08-16 19:25:53 +0000 1205) #define kvm_supports_32bit_el0()				\
+f3c6efc72f3b2 (Oliver Upton           2022-08-16 19:25:53 +0000 1206) 	(system_supports_32bit_el0() &&				\
+f3c6efc72f3b2 (Oliver Upton           2022-08-16 19:25:53 +0000 1207) 	 !static_branch_unlikely(&arm64_mismatched_32bit_el0))
+f3c6efc72f3b2 (Oliver Upton           2022-08-16 19:25:53 +0000 1208) 
+de40bb8abb764 (Oliver Upton           2023-04-04 15:40:39 +0000 1209) #define kvm_vm_has_ran_once(kvm)					\
+de40bb8abb764 (Oliver Upton           2023-04-04 15:40:39 +0000 1210) 	(test_bit(KVM_ARCH_FLAG_HAS_RAN_ONCE, &(kvm)->arch.flags))
+de40bb8abb764 (Oliver Upton           2023-04-04 15:40:39 +0000 1211) 
+a8e190cdae1bf (Ard Biesheuvel         2021-01-06 10:34:53 +0000 1212) int kvm_trng_call(struct kvm_vcpu *vcpu);
+f320bc742bc23 (Quentin Perret         2021-03-19 10:01:25 +0000 1213) #ifdef CONFIG_KVM
+f320bc742bc23 (Quentin Perret         2021-03-19 10:01:25 +0000 1214) extern phys_addr_t hyp_mem_base;
+f320bc742bc23 (Quentin Perret         2021-03-19 10:01:25 +0000 1215) extern phys_addr_t hyp_mem_size;
+f320bc742bc23 (Quentin Perret         2021-03-19 10:01:25 +0000 1216) void __init kvm_hyp_reserve(void);
+f320bc742bc23 (Quentin Perret         2021-03-19 10:01:25 +0000 1217) #else
+f320bc742bc23 (Quentin Perret         2021-03-19 10:01:25 +0000 1218) static inline void kvm_hyp_reserve(void) { }
+f320bc742bc23 (Quentin Perret         2021-03-19 10:01:25 +0000 1219) #endif
+a8e190cdae1bf (Ard Biesheuvel         2021-01-06 10:34:53 +0000 1220) 
+1e5794295c5db (Oliver Upton           2022-05-04 03:24:36 +0000 1221) void kvm_arm_vcpu_power_off(struct kvm_vcpu *vcpu);
+b171f9bbb130c (Oliver Upton           2022-05-04 03:24:37 +0000 1222) bool kvm_arm_vcpu_stopped(struct kvm_vcpu *vcpu);
+1e5794295c5db (Oliver Upton           2022-05-04 03:24:36 +0000 1223) 
+4f8d6632ec713 (Marc Zyngier           2012-12-10 16:29:28 +0000 1224) #endif /* __ARM64_KVM_HOST_H__ */
