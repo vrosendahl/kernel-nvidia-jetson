@@ -180,7 +180,7 @@ static inline int arm_lpae_max_entries(int i, struct arm_lpae_io_pgtable *data)
 
 /* Generic functions */
 void __arm_lpae_free_pgtable(struct arm_lpae_io_pgtable *data, int lvl,
-			     arm_lpae_iopte *ptep);
+			     arm_lpae_iopte *ptep, bool only_children);
 
 int arm_lpae_init_pgtable(struct io_pgtable_cfg *cfg,
 			  struct arm_lpae_io_pgtable *data);
