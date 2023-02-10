@@ -101,6 +101,10 @@ enum pkvm_vendor_modules {
  * @register_host_smc_handler:	@cb is called whenever the host issues an SMC
  *				pKVM couldn't handle. If @cb returns false, the
  *				SMC will be forwarded to EL3.
+ * @register_guest_smc_handler:	@cb is called whenever a guest identified by the
+ *				pkvm_handle issues an SMC which pKVM doesn't
+ *				handle. If @cb returns false, the control is
+ *				given back to the host kernel to handle the exit.
  * @register_default_trap_handler:
  *				@cb is called whenever EL2 traps EL1 and pKVM
  *				has not handled it. If @cb returns false, the
@@ -232,6 +236,11 @@ struct pkvm_module_ops {
 	void (*iommu_flush_unmap_cache)(struct kvm_iommu_paddr_cache *cache);
 	int (*host_stage2_enable_lazy_pte)(u64 addr, u64 nr_pages);
 	int (*host_stage2_disable_lazy_pte)(u64 addr, u64 nr_pages);
+	int (*register_guest_smc_handler)(bool (*cb)(
+						  struct arm_smccc_1_2_regs *,
+						  struct arm_smccc_res *res,
+						  pkvm_handle_t handle),
+					  pkvm_handle_t handle);
 #ifdef CONFIG_PKVM_VENDOR_MODULE_OPS
 	void* (*get_vendor_ops)(enum pkvm_vendor_modules vendor);
 #endif
