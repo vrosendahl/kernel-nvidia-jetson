@@ -125,20 +125,6 @@ struct svm_nested_state {
 	bool initialized;
 };
 
-struct vcpu_sev_es_state {
-	/* SEV-ES support */
-	struct vmcb_save_area *vmsa;
-	struct ghcb *ghcb;
-	struct kvm_host_map ghcb_map;
-	bool received_first_sipi;
-
-	/* SEV-ES scratch area support */
-	void *ghcb_sa;
-	u32 ghcb_sa_len;
-	bool ghcb_sa_sync;
-	bool ghcb_sa_free;
-};
-
 struct vcpu_svm {
 	struct kvm_vcpu vcpu;
 	/* vmcb always points at current_vmcb->ptr, it's purely a shorthand. */
@@ -199,7 +185,17 @@ struct vcpu_svm {
 		DECLARE_BITMAP(write, MAX_DIRECT_ACCESS_MSRS);
 	} shadow_msr_intercept;
 
-	struct vcpu_sev_es_state sev_es;
+	/* SEV-ES support */
+	struct vmcb_save_area *vmsa;
+	struct ghcb *ghcb;
+	struct kvm_host_map ghcb_map;
+	bool received_first_sipi;
+
+	/* SEV-ES scratch area support */
+	void *ghcb_sa;
+	u32 ghcb_sa_len;
+	bool ghcb_sa_sync;
+	bool ghcb_sa_free;
 
 	bool guest_state_loaded;
 };
