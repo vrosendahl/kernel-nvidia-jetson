@@ -6,6 +6,9 @@
  *	Colin Cross <ccross@android.com>
  */
 
+#include <asm/sysreg.h>
+#include <asm/ptrace.h>
+
 #include <linux/kernel.h>
 #include <linux/cpu_pm.h>
 #include <linux/module.h>
@@ -191,14 +194,28 @@ static void cpu_pm_resume(void)
 	cpu_pm_exit();
 }
 
+static int ugly_hack_cpuidle_cpu_pm_notify(struct notifier_block *self,
+					   unsigned long action, void *hcpu)
+{
+	if (read_sysreg(CurrentEL) == CurrentEL_EL1)
+		return notifier_from_errno(-EBUSY);
+
+	return NOTIFY_OK;
+}
+
 static struct syscore_ops cpu_pm_syscore_ops = {
 	.suspend = cpu_pm_suspend,
 	.resume = cpu_pm_resume,
 };
 
+static struct notifier_block ugly_hack_cpuidle_cpu_pm_notifier = {
+	.notifier_call = ugly_hack_cpuidle_cpu_pm_notify,
+};
+
 static int cpu_pm_init(void)
 {
 	register_syscore_ops(&cpu_pm_syscore_ops);
+	cpu_pm_register_notifier(&ugly_hack_cpuidle_cpu_pm_notifier);
 	return 0;
 }
 core_initcall(cpu_pm_init);
