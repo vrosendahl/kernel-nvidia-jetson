@@ -92,4 +92,20 @@ config PTDUMP_STAGE2_DEBUGFS
 
          If in doubt, say N.
 
+config KVM_ARM_HYP_DEBUG_UART
+	bool "Hack up some basic UART functionality at EL2"
+	depends on KVM
+	default n
+	help
+	  Enables debug traces from EL2.
+
+	  if unsure, say N.
+
+config KVM_ARM_HYP_DEBUG_UART_ADDR
+	hex "Physical address of the PL011 for EL2 to use"
+	depends on KVM_ARM_HYP_DEBUG_UART
+	default 0x0900000
+	help
+	  Physical address of UART in the host.
+
 endif # VIRTUALIZATION
