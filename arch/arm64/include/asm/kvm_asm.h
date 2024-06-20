@@ -223,6 +223,9 @@ extern void *__vhe_undefined_symbol;
 #ifdef CONFIG_KVM_ARM_HYP_DEBUG_GDB_SYMBOLS
 	__KVM_HOST_SMCCC_FUNC___attach_gdb,
 #endif
+#ifdef CONFIG_KVM_ARM_HYP_DEBUG_HYP_CALLS
+	__KVM_HOST_SMCCC_FUNC___hyp_dbg,
+#endif
 
 struct kvm_nvhe_init_params {
 	unsigned long mair_el2;

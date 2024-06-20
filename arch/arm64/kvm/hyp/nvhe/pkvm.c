@@ -367,7 +367,7 @@ static void unmap_donated_memory_noclear(void *va, size_t size)
 /*
  * Return the hyp vm structure corresponding to the handle.
  */
-static struct pkvm_hyp_vm *get_vm_by_handle(pkvm_handle_t handle)
+struct pkvm_hyp_vm *pkvm_get_vm_by_handle(pkvm_handle_t handle)
 {
 	unsigned int idx = vm_handle_to_idx(handle);
 
@@ -383,7 +383,7 @@ int __pkvm_reclaim_dying_guest_page(pkvm_handle_t handle, u64 pfn, u64 gfn, u8 o
 	int ret = -EINVAL;
 
 	hyp_read_lock(&vm_table_lock);
-	hyp_vm = get_vm_by_handle(handle);
+	hyp_vm = pkvm_get_vm_by_handle(handle);
 	if (!hyp_vm || !hyp_vm->is_dying)
 		goto unlock;
 
@@ -403,7 +403,7 @@ struct pkvm_hyp_vm *pkvm_get_hyp_vm(pkvm_handle_t handle)
 	struct pkvm_hyp_vm *hyp_vm;
 
 	hyp_read_lock(&vm_table_lock);
-	hyp_vm = get_vm_by_handle(handle);
+	hyp_vm = pkvm_get_vm_by_handle(handle);
 	if (hyp_vm) {
 		if (WARN_ON(hyp_vm->is_dying))
 			hyp_vm = NULL;
@@ -431,7 +431,7 @@ struct pkvm_hyp_vcpu *pkvm_load_hyp_vcpu(pkvm_handle_t handle,
 		return NULL;
 
 	hyp_read_lock(&vm_table_lock);
-	hyp_vm = get_vm_by_handle(handle);
+	hyp_vm = pkvm_get_vm_by_handle(handle);
 	if (!hyp_vm || hyp_vm->is_dying || READ_ONCE(hyp_vm->nr_vcpus) <= vcpu_idx)
 		goto unlock;
 
@@ -917,7 +917,7 @@ int __pkvm_init_vcpu(pkvm_handle_t handle, struct kvm_vcpu *host_vcpu)
 
 	hyp_read_lock(&vm_table_lock);
 
-	hyp_vm = get_vm_by_handle(handle);
+	hyp_vm = pkvm_get_vm_by_handle(handle);
 	if (!hyp_vm) {
 		ret = -ENOENT;
 		goto unlock_vm;
@@ -960,7 +960,7 @@ int __pkvm_start_teardown_vm(pkvm_handle_t handle)
 	int ret = 0;
 
 	hyp_write_lock(&vm_table_lock);
-	hyp_vm = get_vm_by_handle(handle);
+	hyp_vm = pkvm_get_vm_by_handle(handle);
 	if (!hyp_vm) {
 		ret = -ENOENT;
 		goto unlock;
@@ -989,7 +989,7 @@ int __pkvm_finalize_teardown_vm(pkvm_handle_t handle)
 	int err;
 
 	hyp_write_lock(&vm_table_lock);
-	hyp_vm = get_vm_by_handle(handle);
+	hyp_vm = pkvm_get_vm_by_handle(handle);
 	if (!hyp_vm) {
 		err = -ENOENT;
 		goto err_unlock;
@@ -1873,7 +1873,7 @@ int pkvm_stage2_snapshot_by_handle(struct kvm_pgtable_snapshot *snap_hva,
 		ret = __pkvm_host_stage2_snapshot(snap);
 	else {
 		hyp_read_lock(&vm_table_lock);
-		vm = get_vm_by_handle(handle);
+		vm = pkvm_get_vm_by_handle(handle);
 		if (vm)
 			ret = __pkvm_guest_stage2_snapshot(snap, vm);
 		hyp_read_unlock(&vm_table_lock);
