@@ -12,6 +12,7 @@ hyp-obj-y += ../vgic-v3-sr.o ../aarch32.o ../vgic-v2-cpuif-proxy.o ../entry.o \
 hyp-obj-$(CONFIG_KVM_ARM_HYP_DEBUG_UART) += debug/print.o debug/subr_prf.o \
 	debug/strlen.o
 hyp-obj-$(CONFIG_KVM_ARM_HYP_DEBUG_GDB_SYMBOLS) += debug/gdb.o
+hyp-obj-$(CONFIG_KVM_ARM_HYP_DEBUG_HYP_CALLS) += debug/hyp-dbg.o debug/parse_attr.o  debug/print_mappings.o debug/count_shared.o
 hyp-obj-$(CONFIG_TRACING) += clock.o events.o trace.o
 hyp-obj-$(CONFIG_DEBUG_LIST) += list_debug.o
 hyp-obj-$(CONFIG_MODULES) += modules.o
@@ -30,3 +31,5 @@ LDFLAGS_el2.bin := -T
 $(obj)/debug/el2.bin: $(obj)/debug/hyp-dbg.lds $(addprefix $(obj)/,$(hyp-obj) ) $(obj)/debug/dummy.o FORCE
 	$(call if_changed,ld)
 endif
+
+clean-files += debug/el2.bin
