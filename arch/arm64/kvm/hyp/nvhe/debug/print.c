@@ -28,7 +28,6 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifdef CONFIG_KVM_ARM_HYP_DEBUG_UART
 #include <linux/kernel.h>
 #include <hyp/hyp_print.h>
 #include <hyp/hyp_debug.h>
@@ -116,6 +115,7 @@ int hyp_snprint(char *s, size_t slen, const char *format, ...)
 	va_end(ap);
 	return retval;
 }
+
 #ifdef CONFIG_KVM_ARM_HYP_DEBUG_HYP_CALLS
 int hyp_dbg_print(const char *fmt, ...)
 {
@@ -146,13 +146,4 @@ int hyp_dbg_print(const char *fmt, ...)
 	}
 	return count;
 }
-#endif
-
-
-
-#else
-
-int hyp_print(const char *fmt, ...) { return 0; }
-int hyp_snprint(const char *fmt, ...) { return 0; }
-
 #endif

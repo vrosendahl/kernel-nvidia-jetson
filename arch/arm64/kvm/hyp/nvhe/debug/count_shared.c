@@ -27,11 +27,6 @@
 				     : "memory", "x20");                       \
 	} while (0)
 
-//extern struct host_mmu host_mmu;
-//extern struct kvm_pgtable pkvm_pgtable;
-
-struct pkvm_hyp_vm *get_vm_by_handle(pkvm_handle_t handle);
-
 struct data_buf {
 	u64 size;
 	u64 start_ipa;
@@ -208,7 +203,7 @@ int count_shared(pkvm_handle_t handle, u64 size, u64 lock)
 	walker_data.host_pgt = host_mmu.arch.mmu.pgt;
 	walker_data.lock = (bool) lock;
 	if (handle) {
-		vm = get_vm_by_handle(handle);
+		vm = pkvm_get_vm_by_handle(handle);
 		if (!vm) {
 			hyp_print("no handle\n");
 			return -EINVAL;

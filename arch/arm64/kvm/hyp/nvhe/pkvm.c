@@ -296,7 +296,7 @@ void pkvm_hyp_vm_table_init(void *tbl)
 /*
  * Return the hyp vm structure corresponding to the handle.
  */
-struct pkvm_hyp_vm *get_vm_by_handle(pkvm_handle_t handle)
+struct pkvm_hyp_vm *pkvm_get_vm_by_handle(pkvm_handle_t handle)
 {
 	unsigned int idx = vm_handle_to_idx(handle);
 
@@ -312,7 +312,7 @@ int __pkvm_reclaim_dying_guest_page(pkvm_handle_t handle, u64 pfn, u64 ipa)
 	int ret = -EINVAL;
 
 	hyp_spin_lock(&vm_table_lock);
-	hyp_vm = get_vm_by_handle(handle);
+	hyp_vm = pkvm_get_vm_by_handle(handle);
 	if (!hyp_vm || !hyp_vm->is_dying)
 		goto unlock;
 
@@ -338,7 +338,7 @@ struct pkvm_hyp_vcpu *pkvm_load_hyp_vcpu(pkvm_handle_t handle,
 		return NULL;
 
 	hyp_spin_lock(&vm_table_lock);
-	hyp_vm = get_vm_by_handle(handle);
+	hyp_vm = pkvm_get_vm_by_handle(handle);
 	if (!hyp_vm || hyp_vm->is_dying || hyp_vm->nr_vcpus <= vcpu_idx)
 		goto unlock;
 
@@ -544,6 +544,7 @@ static int init_pkvm_hyp_vcpu(struct pkvm_hyp_vcpu *hyp_vcpu,
 		ret = -EINVAL;
 		goto done;
 	}
+
 	hyp_vcpu->host_vcpu = host_vcpu;
 
 	hyp_vcpu->vcpu.kvm = &hyp_vm->kvm;
@@ -813,7 +814,7 @@ int __pkvm_init_vcpu(pkvm_handle_t handle, struct kvm_vcpu *host_vcpu,
 
 	hyp_spin_lock(&vm_table_lock);
 
-	hyp_vm = get_vm_by_handle(handle);
+	hyp_vm = pkvm_get_vm_by_handle(handle);
 	if (!hyp_vm) {
 		ret = -ENOENT;
 		goto unlock;
@@ -860,7 +861,7 @@ int __pkvm_start_teardown_vm(pkvm_handle_t handle)
 	int ret = 0;
 
 	hyp_spin_lock(&vm_table_lock);
-	hyp_vm = get_vm_by_handle(handle);
+	hyp_vm = pkvm_get_vm_by_handle(handle);
 	if (!hyp_vm) {
 		ret = -ENOENT;
 		goto unlock;
@@ -891,7 +892,7 @@ int __pkvm_finalize_teardown_vm(pkvm_handle_t handle)
 	int err;
 
 	hyp_spin_lock(&vm_table_lock);
-	hyp_vm = get_vm_by_handle(handle);
+	hyp_vm = pkvm_get_vm_by_handle(handle);
 	if (!hyp_vm) {
 		err = -ENOENT;
 		goto err_unlock;

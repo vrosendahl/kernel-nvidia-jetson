@@ -7,4 +7,6 @@ incdir := $(srctree)/$(src)/include
 subdir-asflags-y := -I$(incdir)
 subdir-ccflags-y := -I$(incdir)
 
-obj-$(CONFIG_KVM) += vhe/ nvhe/ hyp-print.o pgtable.o
+obj-$(CONFIG_KVM) += vhe/ nvhe/ pgtable.o
+
+obj-$(CONFIG_KVM_ARM_HYP_DEBUG_UART) += hyp-print.o

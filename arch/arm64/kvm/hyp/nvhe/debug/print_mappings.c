@@ -7,13 +7,10 @@
 
 #include <hyp/hyp_print.h>
 #include <nvhe/mem_protect.h>
+#include <nvhe/mm.h>
 #include <nvhe/pkvm.h>
 
-extern struct host_mmu host_mmu;
-extern struct kvm_pgtable pkvm_pgtable;
-
 char *parse_attrs(char *p, uint64_t attrs, uint64_t stage);
-struct pkvm_hyp_vm *get_vm_by_handle(pkvm_handle_t handle);
 
 struct dbg_map_data {
 	u64 vaddr;
@@ -166,7 +163,7 @@ int print_mappings(u32 id, u64 addr, u64 size)
 	} else {
 		/* printthe guest mappings */
 		wdata.stage = 2;
-		vm = get_vm_by_handle(id - 2 + 0x1000);
+		vm = pkvm_get_vm_by_handle(id - 2 + 0x1000);
 		if (!vm)
 			return -EINVAL;
 		pgt = &vm->pgt;

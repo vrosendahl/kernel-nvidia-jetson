@@ -8,7 +8,7 @@
 #ifdef CONFIG_KVM_ARM_HYP_DEBUG_RAMLOG
 void debug_dump_csrs(void);
 #else
-void debug_dump_csrs(void) { }
+static inline void debug_dump_csrs(void) { }
 #endif
 
 #endif /* _KVM_ARM64_DUMP_REGS_H */

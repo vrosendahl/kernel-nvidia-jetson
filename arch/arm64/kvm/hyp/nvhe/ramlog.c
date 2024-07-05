@@ -5,82 +5,23 @@
 #ifdef CONFIG_KVM_ARM_HYP_DEBUG_RAMLOG
 
 /* Tiny ram log */
-char __rlog[RAMLOG_SIZE];
-int __rp;
+struct ramlog __hyp_ramlog;
 
 static inline void unvalid_log_chacha(void);
 static inline bool is_log_chacha_initialized(void);
 
 /* keys should to be gotten from keystorage when it will be implemented */
-u32 chacha_state[16] = {0};
-u32 chacha_key[8] = {
+static u32 chacha_state[16] = {0};
+static u32 chacha_key[8] = {
 	0x09080706, 0x10203040, 0x05060708, 0x50607080,
 	0xa9a8a7a6, 0x1a2a3a4a, 0xa5a6a7a8, 0x5a6a7a8a
 };
-u8 chacha_iv[16] = {
+static u8 chacha_iv[16] = {
 	0x10, 0x0f, 0x02, 0xe0,
 	0x30, 0x0d, 0x04, 0xc0,
 	0x50, 0x0b, 0x06, 0xa0,
 	0x70, 0x09, 0x08, 0x80,
 };
-
-struct hyp_timestamp hts = {0};
-
-static inline u64 getcntpct_el0(void)
-{
-	u64 res;
-
-	isb();
-	asm volatile("mrs %0, cntpct_el0" : "=r" (res) :: "memory");
-	return res;
-}
-
-static inline u64 getcntfrq_el0(void)
-{
-	u64 res;
-
-	isb();
-	asm volatile("mrs %0, cntfrq_el0" : "=r" (res) :: "memory");
-	return res;
-}
-
-/* poor implementation of the timer from cntpct_el0
- * could be not accurate in lowest orders
- */
-inline void gettimestamp(struct hyp_timestamp *hts)
-{
-	int i;
-	u64 nsec = 0, rem = 0;
-	u64 clks = getcntpct_el0();
-	u64 freq = getcntfrq_el0();
-
-	hts->sec = clks/freq;
-	rem = clks % freq;
-	for (i = 0; i < 10; i++) {
-		freq /= 10;
-		nsec += rem / freq;
-		rem = rem % freq;
-		nsec *= 10;
-	}
-	hts->nsec = nsec / 10;
-}
-
-inline char *rlogp_head(void)
-{
-	return __rlog;
-}
-
-/* returns a pointer to 64-byte entry
- */
-inline char *rlogp_entry(int entry)
-{
-	return &__rlog[entry * LOG_ENTRY_LENGTH];
-}
-
-inline int rlog_cur_entry(void)
-{
-	return __rp / LOG_ENTRY_LENGTH;
-}
 
 static void __decrypt_log_data(void)
 {
@@ -100,7 +41,7 @@ static void __decrypt_log_data(void)
 
 static void __encrypt_log_data(void)
 {
-	if (__rp > LOG_ENTRY_LENGTH && is_log_chacha_initialized()) {
+	if (__hyp_ramlog.rp > LOG_ENTRY_LENGTH && is_log_chacha_initialized()) {
 		chacha_crypt_generic(chacha_state,
 							rlogp_entry(1),
 							rlogp_entry(1),
@@ -116,8 +57,8 @@ static inline void log_chacha_init(void)
 	/* put whole chacha's init state into the first log entry */
 	/* TODO: crypt it with ECDH shared secret */
 	memcpy(rlogp_head(), chacha_state, 64);
-	if (__rp < LOG_ENTRY_LENGTH)
-		__rp = LOG_ENTRY_LENGTH;
+	if (__hyp_ramlog.rp < LOG_ENTRY_LENGTH)
+		__hyp_ramlog.rp = LOG_ENTRY_LENGTH;
 	else
 		__encrypt_log_data();
 }
@@ -145,12 +86,12 @@ static inline void unvalid_log_chacha(void)
 /* fill log entry with padding to make it 64byte multiple sized */
 static inline void __align_log_entry(void)
 {
-	if (__rlog[__rp - 1] == '\n')
-		__rp--;
-	for (; __rp % LOG_ENTRY_LENGTH != 0; __rp++)
-		__rlog[__rp] = ' ';
-	__rlog[__rp - 2] = '.';
-	__rlog[__rp - 1] = '\0';
+	if (__hyp_ramlog.buf[__hyp_ramlog.rp - 1] == '\n')
+		__hyp_ramlog.rp--;
+	for (; __hyp_ramlog.rp % LOG_ENTRY_LENGTH != 0; __hyp_ramlog.rp++)
+		__hyp_ramlog.buf[__hyp_ramlog.rp] = ' ';
+	__hyp_ramlog.buf[__hyp_ramlog.rp - 2] = '.';
+	__hyp_ramlog.buf[__hyp_ramlog.rp - 1] = '\0';
 }
 
 
@@ -162,21 +103,21 @@ void hyp_ramlog(const char *fmt, ...)
 
 	/* if log array contains less than 2*LOG_ENTRY_LENGTH - reinit log
 	 */
-	if ((__rp + 2 * LOG_ENTRY_LENGTH) >= RAMLOG_SIZE) {
+	if ((__hyp_ramlog.rp + 2 * LOG_ENTRY_LENGTH) >= RAMLOG_SIZE) {
 		unvalid_log_chacha();
-		__rp = 0;
+		__hyp_ramlog.rp = 0;
 	}
 
 	log_chacha_check_and_init();
 
 	va_start(args, fmt);
-	count = hyp_vsnprintf(&__rlog[__rp], 2 * LOG_ENTRY_LENGTH, fmt, args);
+	count = hyp_vsnprintf(&__hyp_ramlog.buf[__hyp_ramlog.rp], 2 * LOG_ENTRY_LENGTH, fmt, args);
 	va_end(args);
 
-	__rp += count;
+	__hyp_ramlog.rp += count;
 
 	/* align entry to be multiple of LOG_ENTRY_LENGTH
-	 * __rp will be moved to be multiple of 64
+	 * __hyp_ramlog.rp will be moved to be multiple of 64
 	 */
 	__align_log_entry();
 
