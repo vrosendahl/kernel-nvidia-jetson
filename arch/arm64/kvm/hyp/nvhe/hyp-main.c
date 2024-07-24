@@ -27,6 +27,7 @@
 
 #include <linux/irqchip/arm-gic-v3.h>
 #include <uapi/linux/psci.h>
+#include <hyp/hyp_debug.h>
 
 #include "../../sys_regs.h"
 
@@ -1163,6 +1164,29 @@ static void handle___pkvm_iommu_register(struct kvm_cpu_context *host_ctxt)
 	cpu_reg(host_ctxt, 1) = __pkvm_iommu_register(dev_id, drv_id, dev_pa,
 						      dev_size, parent_id, flags, mem);
 }
+#ifdef CONFIG_KVM_ARM_HYP_DEBUG_GDB_SYMBOLS
+static void handle___attach_gdb(struct kvm_cpu_context *host_ctxt)
+{
+	DECLARE_REG(unsigned long, param, host_ctxt, 1);
+
+	cpu_reg(host_ctxt, 1) = attach_gdb(param);
+}
+#endif
+
+#ifdef CONFIG_KVM_ARM_HYP_DEBUG_HYP_CALLS
+static void handle___hyp_dbg(struct kvm_cpu_context *host_ctxt)
+{
+	DECLARE_REG(u64, cmd, host_ctxt, 1);
+	DECLARE_REG(u64, prm1, host_ctxt, 2);
+	DECLARE_REG(u64, prm2, host_ctxt, 3);
+	DECLARE_REG(u64, prm3, host_ctxt, 4);
+	DECLARE_REG(u64, prm4, host_ctxt, 5);
+
+	cpu_reg(host_ctxt, 1) = hyp_dbg(cmd, prm1, prm2, prm3, prm4);
+}
+
+
+#endif
 
 static void handle___pkvm_iommu_pm_notify(struct kvm_cpu_context *host_ctxt)
 {
@@ -1324,6 +1348,15 @@ static const hcall_t host_hcall[] = {
 	HANDLE_FUNC(__pkvm_enable_event),
 #ifdef CONFIG_ANDROID_ARM64_WORKAROUND_DMA_BEYOND_POC
 	HANDLE_FUNC(__pkvm_host_set_stage2_memattr),
+#endif
+#ifdef CONFIG_KVM_ARM_HYP_DEBUG_GDB_SYMBOLS
+	HANDLE_FUNC(__attach_gdb),
+#endif
+#ifdef CONFIG_KVM_ARM_HYP_DEBUG_HYP_CALLS
+	HANDLE_FUNC(__hyp_dbg),
+#endif
+#ifdef CONFIG_KVM_ARM_HYP_DEBUG_HYP_CALLS
+	HANDLE_FUNC(__hyp_dbg),
 #endif
 };
 

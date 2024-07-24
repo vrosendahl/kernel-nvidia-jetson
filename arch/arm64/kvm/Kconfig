@@ -75,4 +75,59 @@ config PKVM_MODULE_PATH
 	  Directory where the pKVM modules are found. If empty, the modules
 	  will be searched into the default path /lib/modules/<uname>.
 
+config KVM_ARM_HYP_DEBUG_UART
+	bool "Hack up some basic UART functionality at EL2"
+	depends on KVM
+	default n
+	help
+	  Enables debug traces from EL2.
+
+	  if unsure, say N.
+
+config KVM_ARM_HYP_DEBUG_UART_ADDR
+	hex "Physical address of the PL011 for EL2 to use"
+	depends on KVM_ARM_HYP_DEBUG_UART
+	default 0x0900000
+	help
+	  Physical address of UART in the host.
+
+config KVM_ARM_HYP_DEBUG_GDB_SYMBOLS
+	bool "Enables symbols for gdb in EL2"
+	depends on KVM_ARM_HYP_DEBUG_UART
+	default n
+	help
+	  Say Y here to enable loading symbols for gdb onEL2.
+
+	  if unsure, say N.
+
+config KVM_ARM_HYP_DEBUG_HYP_CALLS
+	bool "Enables debugging calls to EL2"
+	depends on KVM
+	default n
+	help
+	  Say Y here to enable debugging calls from EL1 to EL2.
+
+	  if unsure, say N.
+
+config KVM_ARM_HYP_DEBUG_RAMLOG
+	bool "Presense of a hypervisor ramlog"
+	depends on KVM_ARM_HYP_DEBUG_UART
+	default n
+	help
+	  Hypervisor ramlog collects register dumps and other data separately from
+	  a kernel log. Hypervisor log is encrypted with a chacha20 cipher.
+
+	  if unsure, say N.
+
+config KVM_ARM_HYP_DEBUG_RAMLOG_DIRECT_PRINT
+	bool "Print hyp log messages to console output"
+	depends on KVM_ARM_HYP_DEBUG_RAMLOG
+	default n
+	help
+	  For debug purposes it is convenient to read the log instantly
+	  in console, the option just enables additional output and does not
+	  reject storing and encrypting the log
+
+	  if unsure, say N.
+
 endif # VIRTUALIZATION
