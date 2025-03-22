@@ -229,6 +229,349 @@ exit_idle:
 		local_irq_enable();
 }
 
+#define TIMER_INTERVAL_SECONDS 10
+
+static struct timer_list vrcu_timer;
+
+static void vrcu_timer_callback(struct timer_list *t);
+
+static void vrcu_timer_init(void)
+{
+	pr_info("vrcu: Initializing timer module\n");
+
+	/* Initialize the timer */
+	timer_setup(&vrcu_timer, vrcu_timer_callback, 0);
+
+	/* Schedule the first firing */
+	mod_timer(&vrcu_timer, jiffies + TIMER_INTERVAL_SECONDS * HZ);
+}
+
+struct rcu_dbg_data {
+	atomic_t foo;
+	atomic_t foo2;
+	atomic_t is_printed;
+	atomic_t is_crazy;
+	atomic_t loop_iter;
+	atomic_t loop_total;
+	atomic_t idle_ct;
+	atomic_t idle_warn;
+	atomic_t idle_total;
+	atomic_t irq;
+	atomic_t irq_warn;
+	atomic_t irq_total;
+	atomic_t stop_inf;
+	atomic_long_t stop_tick;
+	atomic_long_t mod_value;
+	atomic_t mod_stop;
+	atomic_long_t last_sched_clock;
+	atomic_long_t bc_expired_true;
+	atomic_long_t bc_expired_false;
+	atomic_long_t bc_expired_sent;
+	atomic_long_t idle_exit;
+	atomic_long_t idle_update_tick;
+	atomic_long_t restart_sched_tick;
+};
+
+static struct rcu_dbg_data vrcu_data[CONFIG_NR_CPUS];
+
+static void vrcu_check_tick(unsigned long j)
+{
+	int cpu = smp_processor_id();
+	long stop_tick = atomic_long_read(&vrcu_data[cpu].stop_tick);
+	long js;
+
+	if (stop_tick != 0) {
+		js = j - stop_tick;
+		if (js > 1) {
+			pr_err("vrcu_check_tick: cpu=%d %ld\n", cpu, js);
+		}
+	}
+	atomic_long_set(&vrcu_data[cpu].stop_tick, 0);
+}
+
+void set_cpu_crazy(int cpu)
+{
+	vrcu_check_tick(jiffies);
+	atomic_set(&vrcu_data[cpu].is_crazy, 1);
+	wmb();
+}
+
+bool cpu_is_crazy(int cpu)
+{
+	rmb();
+	return (atomic_read(&vrcu_data[cpu].is_crazy) == 1);
+}
+
+void viktor_init_crazy(void)
+{
+	int cpu;
+
+	for (cpu = 0; cpu < CONFIG_NR_CPUS; cpu++) {
+		atomic_set(&vrcu_data[cpu].foo, -1);
+		atomic_set(&vrcu_data[cpu].foo2, -1);
+		atomic_set(&vrcu_data[cpu].is_printed, -1);
+		atomic_set(&vrcu_data[cpu].is_crazy, 0);
+		atomic_set(&vrcu_data[cpu].loop_iter, 0);
+		atomic_set(&vrcu_data[cpu].loop_total, 0);
+		atomic_set(&vrcu_data[cpu].idle_ct, 0);
+		atomic_set(&vrcu_data[cpu].idle_total, 0);
+		atomic_set(&vrcu_data[cpu].idle_warn, 0);
+		atomic_set(&vrcu_data[cpu].irq, 0);
+		atomic_set(&vrcu_data[cpu].irq_total, 0);
+		atomic_set(&vrcu_data[cpu].irq_warn, 0);
+		atomic_set(&vrcu_data[cpu].stop_inf, 0);
+		atomic_long_set(&vrcu_data[cpu].stop_tick, 0);
+		atomic_long_set(&vrcu_data[cpu].mod_value, 0);
+		atomic_set(&vrcu_data[cpu].mod_stop, 0);
+		atomic_long_set(&vrcu_data[cpu].last_sched_clock, 0);
+		atomic_long_set(&vrcu_data[cpu].bc_expired_true, 0);
+		atomic_long_set(&vrcu_data[cpu].bc_expired_false, 0);
+		atomic_long_set(&vrcu_data[cpu].bc_expired_sent, 0);
+		atomic_long_set(&vrcu_data[cpu].idle_exit, 0);
+		atomic_long_set(&vrcu_data[cpu].idle_update_tick, 0);
+		atomic_long_set(&vrcu_data[cpu].restart_sched_tick, 0);
+	}
+	vrcu_timer_init();
+}
+
+void print_vrcu_data(int cpu, const char *append)
+{
+	int is_crazy = atomic_read(&vrcu_data[cpu].is_crazy);
+	int loop_iter = atomic_read(&vrcu_data[cpu].loop_iter);
+	int loop_total = atomic_read(&vrcu_data[cpu].loop_total);
+	int idle_ct = atomic_read(&vrcu_data[cpu].idle_ct);
+	int idle_warn = atomic_read(&vrcu_data[cpu].idle_warn);
+	int idle_total = atomic_read(&vrcu_data[cpu].idle_total);
+	int irq = atomic_read(&vrcu_data[cpu].irq);
+	int irq_warn = atomic_read(&vrcu_data[cpu].irq_warn);
+	int stop_inf = atomic_read(&vrcu_data[cpu].stop_inf);
+	int irq_total = atomic_read(&vrcu_data[cpu].irq_total);
+	long last_sched_clock = atomic_long_read(&vrcu_data[cpu].last_sched_clock);
+	long stop_tick = atomic_long_read(&vrcu_data[cpu].stop_tick);
+	long mod_value = atomic_long_read(&vrcu_data[cpu].mod_value);
+	int mod_stop = atomic_read(&vrcu_data[cpu].mod_stop);
+	long bc_expired_true = atomic_long_read(&vrcu_data[cpu].bc_expired_true);
+	long bc_expired_false = atomic_long_read(&vrcu_data[cpu].bc_expired_false);
+	long bc_expired_sent = atomic_long_read(&vrcu_data[cpu].bc_expired_sent);
+	long idle_exit = atomic_long_read(&vrcu_data[cpu].idle_exit);
+	long idle_update_tick = atomic_long_read(&vrcu_data[cpu].idle_update_tick);
+	long restart_sched_tick = atomic_long_read(&vrcu_data[cpu].restart_sched_tick);
+	unsigned long j = jiffies;
+
+	if (append == NULL)
+		pr_err("vrcu_data jiffies=%lu cpu=%d {is_crazy=%d, loop_iter=%d, loop_total=%d, idle_ct=%d, idle_warn=%d idle_total=%d, irq=%d, irq_warn=%d, irq_total=%d stop_inf=%d stop_tick=%ld last_sched_clock=%ld mod_stop=%d mod_value=%ld bc_exp_true=%ld bc_exp_false=%ld bc_exp_sent=%ld idle_exit=%ld idle_update_tick=%ld restart_sched_tick=%ld}\n", j, cpu, is_crazy, loop_iter, loop_total, idle_ct, idle_warn, idle_total, irq, irq_warn, irq_total, stop_inf, stop_tick, last_sched_clock, mod_stop, mod_value, bc_expired_true, bc_expired_false, bc_expired_sent, idle_exit, idle_update_tick, restart_sched_tick);
+	else
+		pr_err("vrcu_data%s jiffies=%lu cpu=%d {is_crazy=%d, loop_iter=%d, loop_total=%d, idle_ct=%d, idle_warn=%d idle_total=%d, irq=%d, irq_warn=%d, irq_total=%d stop_inf=%d stop_tick=%ld last_sched_clock=%ld mod_stop=%d mod_value=%ld bc_exp_true=%ld bc_exp_false=%ld bc_exp_sent=%ld idle_exit=%ld idle_update_tick=%ld restart_sched_tick=%ld}\n", append, j, cpu, is_crazy, loop_iter, loop_total, idle_ct, idle_warn, idle_total, irq, irq_warn, irq_total, stop_inf, stop_tick, last_sched_clock, mod_stop, mod_value, bc_expired_true, bc_expired_false, bc_expired_sent, idle_exit, idle_update_tick, restart_sched_tick);
+}
+
+void print_ref(void)
+{
+	int cpu;
+	int nr = 0;
+
+	for (cpu = 0; cpu < CONFIG_NR_CPUS && nr < 3; cpu++) {
+		if (!cpu_is_crazy(cpu)) {
+			print_vrcu_data(cpu, "_REF_");
+			nr++;
+		}
+	}
+}
+
+void vrcu_inc_loop_iter(int cpu)
+{
+	if (cpu_is_crazy(cpu))
+		atomic_inc(&vrcu_data[cpu].loop_iter);
+	atomic_inc(&vrcu_data[cpu].loop_total);
+}
+
+void vrcu_irq_inc(void)
+{
+	int cpu = smp_processor_id();
+	int value = atomic_inc_return(&vrcu_data[cpu].irq);
+
+	atomic_inc(&vrcu_data[cpu].irq_total);
+
+	if (value > 1 && atomic_read(&vrcu_data[cpu].irq_warn) == 0) {
+		pr_err("vrcu irq warning: cpu=%d %d\n", cpu, value);
+		atomic_set(&vrcu_data[cpu].irq_warn, 1);
+	}
+}
+
+void vrcu_irq_dec(void)
+{
+	int cpu = smp_processor_id();
+	int value = atomic_dec_return(&vrcu_data[cpu].irq);
+
+	if (value < 0 && atomic_read(&vrcu_data[cpu].irq_warn) == 0) {
+		pr_err("vrcu irq warning: cpu=%d %d\n", cpu, value);
+		atomic_set(&vrcu_data[cpu].irq_warn, 1);
+	}
+}
+
+void vrcu_idle_inc(void)
+{
+	int cpu = smp_processor_id();
+	int value = atomic_inc_return(&vrcu_data[cpu].idle_ct);
+
+	atomic_inc(&vrcu_data[cpu].idle_total);
+
+	if (value > 1 && atomic_read(&vrcu_data[cpu].idle_warn) == 0) {
+		pr_err("vrcu idle > 1 warning: cpu=%d %d\n", cpu, value);
+		atomic_set(&vrcu_data[cpu].idle_warn, 1);
+	}
+}
+
+void vrcu_idle_dec(void)
+{
+	int cpu = smp_processor_id();
+	int value = atomic_dec_return(&vrcu_data[cpu].idle_ct);
+
+	if (value < 0 && atomic_read(&vrcu_data[cpu].idle_warn) == 0) {
+		pr_err("vrcu idle_ct < 0 warning: cpu=%d %d\n", cpu, value);
+		atomic_set(&vrcu_data[cpu].idle_warn, 1);
+	}
+}
+
+void vrcu_debug_stop_tick(long j, ktime_t expires)
+{
+	int cpu = smp_processor_id();
+
+	if (expires == KTIME_MAX)
+		atomic_inc(&vrcu_data[cpu].stop_inf);
+
+#if 0
+	if (expires != KTIME_MAX && j >= 30000)
+		pr_err("%s() cpu=%d j=%ld expires=%lld\n", __func__, cpu, j, expires);
+#endif
+
+	else if (expires != KTIME_MAX) {
+		atomic_inc(&vrcu_data[cpu].mod_stop);
+		atomic_long_add(j, &vrcu_data[cpu].mod_value);
+	}
+
+	j += (long) jiffies;
+	if (expires != KTIME_MAX)
+		atomic_long_set(&vrcu_data[cpu].stop_tick, j);
+	else
+		atomic_long_set(&vrcu_data[cpu].stop_tick, 444444444444);
+}
+
+void vrcu_debug_clock_irq(unsigned long j)
+{
+	int cpu = smp_processor_id();
+
+	vrcu_check_tick(j);
+	atomic_long_set(&vrcu_data[cpu].last_sched_clock, j);
+}
+
+static void vrcu_expired_stack_dump(int cpu)
+{
+	int printed = atomic_inc_return(&vrcu_data[cpu].foo);
+
+	if ((printed % 100 == 0)) {
+		pr_err("%s(CPU=%d)\n", __func__, cpu);
+		dump_stack_lvl(KERN_ERR);
+	}
+}
+
+static void vrcu_restart_stack_dump(int cpu)
+{
+	int printed = atomic_inc_return(&vrcu_data[cpu].foo2);
+
+	if ((printed % 100 == 0)) {
+		pr_err("%s(CPU=%d)\n", __func__, cpu);
+		dump_stack_lvl(KERN_ERR);
+	}
+}
+
+void vrcu_debug_broadcast_expired(int value)
+{
+	int cpu = smp_processor_id();
+	unsigned int j = jiffies;
+
+	if (value) {
+		atomic_long_set(&vrcu_data[cpu].bc_expired_true, j);
+		vrcu_expired_stack_dump(cpu);
+	} else {
+		atomic_long_set(&vrcu_data[cpu].bc_expired_false, j);
+	}
+}
+
+void vrcu_debug_send_broadcast(int cpu)
+{
+	unsigned int j = jiffies;
+	int printed = atomic_inc_return(&vrcu_data[cpu].is_printed);
+
+	if ((printed % 100 == 0)) {
+		pr_err("%s(CPU=%d)\n", __func__, cpu);
+		dump_stack_lvl(KERN_ERR);
+	}
+
+	atomic_long_set(&vrcu_data[cpu].bc_expired_sent, j);
+}
+
+void vrcu_debug_idle_exit(void) {
+	int cpu = smp_processor_id();
+
+	long j = jiffies;
+	atomic_long_set(&vrcu_data[cpu].idle_exit, j);
+}
+
+void vrcu_idle_update_tick(void) {
+	int cpu = smp_processor_id();
+
+	long j = jiffies;
+	atomic_long_set(&vrcu_data[cpu].idle_update_tick, j);
+}
+
+
+void vrcu_idle_restart_sched_tick(void) {
+	int cpu = smp_processor_id();
+
+	long j = jiffies;
+	atomic_long_set(&vrcu_data[cpu].restart_sched_tick, j);
+	vrcu_restart_stack_dump(cpu);
+}
+
+static int viktor_tick_check_broadcast_expired(void) {
+	int r = tick_check_broadcast_expired();
+
+	vrcu_debug_broadcast_expired(r);
+	return r;
+}
+
+static bool vrcu_is_any_cpu_crazy(void)
+{
+	int cpu;
+
+	for (cpu = 0; cpu < CONFIG_NR_CPUS; cpu++) {
+		if (atomic_read(&vrcu_data[cpu].is_crazy) != 0)
+			return true;
+	}
+	return false;
+}
+
+static void vrcu_dump_cpus(int cpumax)
+{
+	int cpu;
+
+	for (cpu = 0; cpu < cpumax; cpu++) {
+		print_vrcu_data(cpu, "_norm");
+	}
+}
+
+/* Function that will be called every time the timer fires */
+static void vrcu_timer_callback(struct timer_list *t)
+{
+	if (!vrcu_is_any_cpu_crazy()) {
+		pr_info("Dumping CPUs (%ld).\n", jiffies);
+		vrcu_dump_cpus(12);
+	}
+
+	/* Re-arm the timer */
+	mod_timer(&vrcu_timer, jiffies + TIMER_INTERVAL_SECONDS * HZ);
+}
+
 /*
  * Generic idle loop implementation
  *
@@ -237,6 +580,11 @@ exit_idle:
 static void do_idle(void)
 {
 	int cpu = smp_processor_id();
+
+	if (cpu_is_crazy(cpu)) {
+		print_vrcu_data(cpu, NULL);
+		print_ref();
+	}
 
 	/*
 	 * Check if we need to update blocked load
@@ -256,6 +604,8 @@ static void do_idle(void)
 	tick_nohz_idle_enter();
 
 	while (!need_resched()) {
+		vrcu_inc_loop_iter(cpu);
+
 		rmb();
 
 		local_irq_disable();
@@ -275,7 +625,7 @@ static void do_idle(void)
 		 * broadcast device expired for us, we don't want to go deep
 		 * idle as we know that the IPI is going to arrive right away.
 		 */
-		if (cpu_idle_force_poll || tick_check_broadcast_expired()) {
+		if (cpu_idle_force_poll || viktor_tick_check_broadcast_expired()) {
 			tick_nohz_idle_restart_tick();
 			cpu_idle_poll();
 		} else {
