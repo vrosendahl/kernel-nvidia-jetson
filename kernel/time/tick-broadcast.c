@@ -16,6 +16,7 @@
 #include <linux/sched.h>
 #include <linux/smp.h>
 #include <linux/module.h>
+#include <linux/vrcu.h>
 
 #include "tick-internal.h"
 
@@ -917,6 +918,7 @@ static int ___tick_broadcast_oneshot_control(enum tick_broadcast_state state,
 			now = ktime_get();
 			if (dev->next_event <= now) {
 				cpumask_set_cpu(cpu, tick_broadcast_force_mask);
+				vrcu_debug_send_broadcast(cpu);
 				goto out;
 			}
 			/*

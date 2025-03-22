@@ -23,6 +23,7 @@
 #include <linux/hardirq.h>
 #include <linux/export.h>
 #include <linux/kprobes.h>
+#include <linux/vrcu.h>
 #include <trace/events/rcu.h>
 
 
@@ -316,6 +317,7 @@ void noinstr ct_nmi_enter(void)
  */
 void noinstr ct_idle_enter(void)
 {
+	vrcu_idle_inc();
 	WARN_ON_ONCE(IS_ENABLED(CONFIG_RCU_EQS_DEBUG) && !raw_irqs_disabled());
 	ct_kernel_exit(false, RCU_DYNTICKS_IDX + CONTEXT_IDLE);
 }
@@ -336,6 +338,7 @@ void noinstr ct_idle_exit(void)
 
 	raw_local_irq_save(flags);
 	ct_kernel_enter(false, RCU_DYNTICKS_IDX - CONTEXT_IDLE);
+	vrcu_idle_dec();
 	raw_local_irq_restore(flags);
 }
 EXPORT_SYMBOL_GPL(ct_idle_exit);
@@ -365,6 +368,7 @@ EXPORT_SYMBOL_GPL(ct_idle_exit);
 noinstr void ct_irq_enter(void)
 {
 	lockdep_assert_irqs_disabled();
+	vrcu_irq_inc();
 	ct_nmi_enter();
 }
 
@@ -391,6 +395,7 @@ noinstr void ct_irq_exit(void)
 {
 	lockdep_assert_irqs_disabled();
 	ct_nmi_exit();
+	vrcu_irq_dec();
 }
 
 /*

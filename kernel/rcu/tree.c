@@ -64,6 +64,7 @@
 #include <linux/mm.h>
 #include <linux/kasan.h>
 #include <linux/context_tracking.h>
+#include <linux/vrcu.h>
 #include "../time/tick-internal.h"
 
 #include "tree.h"
@@ -2269,6 +2270,9 @@ static void rcu_do_batch(struct rcu_data *rdp)
 void rcu_sched_clock_irq(int user)
 {
 	unsigned long j;
+
+	j = jiffies;
+	vrcu_debug_clock_irq(j);
 
 	if (IS_ENABLED(CONFIG_PROVE_RCU)) {
 		j = jiffies;
