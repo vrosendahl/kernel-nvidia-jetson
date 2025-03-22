@@ -229,6 +229,136 @@ exit_idle:
 		local_irq_enable();
 }
 
+struct rcu_dbg_data {
+	atomic_t is_crazy;
+	atomic_t loop_iter;
+	atomic_t loop_total;
+	atomic_t idle_ct;
+	atomic_t idle_warn;
+	atomic_t idle_total;
+	atomic_t irq;
+	atomic_t irq_warn;
+	atomic_t irq_total;
+};
+
+static struct rcu_dbg_data vrcu_data[CONFIG_NR_CPUS];
+
+void set_cpu_crazy(int cpu)
+{
+	atomic_set(&vrcu_data[cpu].is_crazy, 1);
+	wmb();
+}
+
+bool cpu_is_crazy(int cpu)
+{
+	rmb();
+	return (atomic_read(&vrcu_data[cpu].is_crazy) == 1);
+}
+
+void viktor_init_crazy(void)
+{
+	int cpu;
+
+	for (cpu = 0; cpu < CONFIG_NR_CPUS; cpu++) {
+		atomic_set(&vrcu_data[cpu].is_crazy, 0);
+		atomic_set(&vrcu_data[cpu].loop_iter, 0);
+		atomic_set(&vrcu_data[cpu].loop_total, 0);
+		atomic_set(&vrcu_data[cpu].idle_ct, 0);
+		atomic_set(&vrcu_data[cpu].idle_total, 0);
+		atomic_set(&vrcu_data[cpu].idle_warn, 0);
+		atomic_set(&vrcu_data[cpu].irq, 0);
+		atomic_set(&vrcu_data[cpu].irq_total, 0);
+		atomic_set(&vrcu_data[cpu].irq_warn, 0);
+	}
+}
+
+void print_vrcu_data(int cpu, const char *append)
+{
+	int is_crazy = atomic_read(&vrcu_data[cpu].is_crazy);
+	int loop_iter = atomic_read(&vrcu_data[cpu].loop_iter);
+	int loop_total = atomic_read(&vrcu_data[cpu].loop_total);
+	int idle_ct = atomic_read(&vrcu_data[cpu].idle_ct);
+	int idle_warn = atomic_read(&vrcu_data[cpu].idle_warn);
+	int idle_total = atomic_read(&vrcu_data[cpu].idle_total);
+	int irq = atomic_read(&vrcu_data[cpu].irq);
+	int irq_warn = atomic_read(&vrcu_data[cpu].irq_warn);
+	int irq_total = atomic_read(&vrcu_data[cpu].irq_total);
+
+	if (append == NULL)
+		pr_err("vrcu_data cpu=%d {is_crazy=%d, loop_iter=%d, loop_total=%d, idle_ct=%d, idle_warn=%d idle_total=%d, irq=%d, irq_warn=%d, irq_total=%d }\n", cpu, is_crazy, loop_iter, loop_total, idle_ct, idle_warn, idle_total, irq, irq_warn, irq_total);
+	else
+		pr_err("vrcu_data%s cpu=%d {is_crazy=%d, loop_iter=%d, loop_total=%d, idle_ct=%d, idle_warn=%d idle_total=%d, irq=%d, irq_warn=%d, irq_total=%d }\n", append, cpu, is_crazy, loop_iter, loop_total, idle_ct, idle_warn, idle_total, irq, irq_warn, irq_total);
+}
+
+void print_ref(void)
+{
+	int cpu;
+	int nr = 0;
+
+	for (cpu = 0; cpu < CONFIG_NR_CPUS && nr < 3; cpu++) {
+		if (!cpu_is_crazy(cpu)) {
+			print_vrcu_data(cpu, "_REF_");
+			nr++;
+		}
+	}
+}
+
+void vrcu_inc_loop_iter(int cpu)
+{
+	if (cpu_is_crazy(cpu))
+		atomic_inc(&vrcu_data[cpu].loop_iter);
+	atomic_inc(&vrcu_data[cpu].loop_total);
+}
+
+void vrcu_irq_inc(void)
+{
+	int cpu = smp_processor_id();
+	int value = atomic_inc_return(&vrcu_data[cpu].irq);
+
+	atomic_inc(&vrcu_data[cpu].irq_total);
+
+	if (value > 1 && atomic_read(&vrcu_data[cpu].irq_warn) == 0) {
+		pr_err("vrcu irq warning: %d\n", value);
+		atomic_set(&vrcu_data[cpu].irq_warn, 1);
+	}
+}
+
+void vrcu_irq_dec(void)
+{
+	int cpu = smp_processor_id();
+	int value = atomic_dec_return(&vrcu_data[cpu].irq);
+
+	if (value < 0 && atomic_read(&vrcu_data[cpu].irq_warn) == 0) {
+		pr_err("vrcu irq warning: %d\n", value);
+		atomic_set(&vrcu_data[cpu].irq_warn, 1);
+	}
+}
+
+void vrcu_idle_inc(void)
+{
+	int cpu = smp_processor_id();
+	int value = atomic_inc_return(&vrcu_data[cpu].idle_ct);
+
+	atomic_inc(&vrcu_data[cpu].idle_total);
+
+	if (value > 1 && atomic_read(&vrcu_data[cpu].idle_warn) == 0) {
+		pr_err("vrcu idle > 1 warning: %d\n", value);
+		atomic_set(&vrcu_data[cpu].idle_warn, 1);
+	}
+}
+
+void vrcu_idle_dec(void)
+{
+	int cpu = smp_processor_id();
+	int value = atomic_dec_return(&vrcu_data[cpu].idle_ct);
+
+	if (value < 0 && atomic_read(&vrcu_data[cpu].idle_warn) == 0) {
+		pr_err("vrcu idle_ct < 0 warning: %d\n", value);
+		atomic_set(&vrcu_data[cpu].idle_warn, 1);
+	}
+}
+
+
 /*
  * Generic idle loop implementation
  *
@@ -237,6 +367,11 @@ exit_idle:
 static void do_idle(void)
 {
 	int cpu = smp_processor_id();
+
+	if (cpu_is_crazy(cpu)) {
+		print_vrcu_data(cpu, NULL);
+		print_ref();
+	}
 
 	/*
 	 * Check if we need to update blocked load
@@ -256,6 +391,8 @@ static void do_idle(void)
 	tick_nohz_idle_enter();
 
 	while (!need_resched()) {
+		vrcu_inc_loop_iter(cpu);
+
 		rmb();
 
 		local_irq_disable();
