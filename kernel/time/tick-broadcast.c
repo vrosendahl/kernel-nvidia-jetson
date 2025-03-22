@@ -16,6 +16,7 @@
 #include <linux/sched.h>
 #include <linux/smp.h>
 #include <linux/module.h>
+#include <linux/vrcu.h>
 
 #include "tick-internal.h"
 
@@ -712,6 +713,7 @@ static void tick_handle_oneshot_broadcast(struct clock_event_device *dev)
 		td = &per_cpu(tick_cpu_device, cpu);
 		if (td->evtdev->next_event <= now) {
 			cpumask_set_cpu(cpu, tmpmask);
+			vrcu_debug_send_broadcast(cpu);
 			/*
 			 * Mark the remote cpu in the pending mask, so
 			 * it can avoid reprogramming the cpu local
@@ -917,6 +919,7 @@ static int ___tick_broadcast_oneshot_control(enum tick_broadcast_state state,
 			now = ktime_get();
 			if (dev->next_event <= now) {
 				cpumask_set_cpu(cpu, tick_broadcast_force_mask);
+				vrcu_debug_send_broadcast(cpu);
 				goto out;
 			}
 			/*
