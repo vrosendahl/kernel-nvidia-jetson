@@ -8,6 +8,7 @@
  */
 
 #include <linux/kvm_para.h>
+#include <linux/vrcu.h>
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -463,6 +464,7 @@ static void print_cpu_stat_info(int cpu)
 		jiffies_to_msecs(jiffies - rsrp->jiffies));
 }
 
+
 /*
  * Print out diagnostic information for the specified stalled CPU.
  *
@@ -485,6 +487,7 @@ static void print_cpu_stall_info(int cpu)
 	unsigned long j;
 	char buf[32];
 
+	set_cpu_crazy(cpu);
 	/*
 	 * We could be printing a lot while holding a spinlock.  Avoid
 	 * triggering hard lockup.

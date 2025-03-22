@@ -33,6 +33,7 @@
 #include <linux/kernel_stat.h>
 #include <linux/kexec.h>
 #include <linux/kvm_host.h>
+#include <linux/vrcu.h>
 
 #include <asm/alternative.h>
 #include <asm/atomic.h>
@@ -757,6 +758,7 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 		set_cpu_present(cpu, true);
 		numa_store_cpu_info(cpu);
 	}
+	viktor_init_crazy();
 }
 
 static const char *ipi_types[NR_IPI] __tracepoint_string = {
