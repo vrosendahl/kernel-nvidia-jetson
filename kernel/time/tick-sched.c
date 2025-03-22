@@ -26,6 +26,7 @@
 #include <linux/posix-timers.h>
 #include <linux/context_tracking.h>
 #include <linux/mm.h>
+#include <linux/vrcu.h>
 
 #include <asm/irq_regs.h>
 
@@ -1110,6 +1111,7 @@ void tick_nohz_idle_stop_tick(void)
 	struct tick_sched *ts = this_cpu_ptr(&tick_cpu_sched);
 	int cpu = smp_processor_id();
 	ktime_t expires;
+	unsigned long j;
 
 	/*
 	 * If tick_nohz_get_sleep_length() ran tick_nohz_next_event(), the
@@ -1131,6 +1133,10 @@ void tick_nohz_idle_stop_tick(void)
 
 		ts->idle_sleeps++;
 		ts->idle_expires = expires;
+
+		//j = nsecs_to_jiffies(ktime_to_ns(ts->idle_expires));
+		j = jiffies + nsecs_to_jiffies(ktime_to_ns(ts->idle_expires - ktime_get()));
+		vrcu_debug_stop_tick(j);
 
 		if (!was_stopped && ts->tick_stopped) {
 			ts->idle_jiffies = ts->last_jiffies;
