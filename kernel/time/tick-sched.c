@@ -26,6 +26,7 @@
 #include <linux/posix-timers.h>
 #include <linux/context_tracking.h>
 #include <linux/mm.h>
+#include <linux/vrcu.h>
 
 #include <asm/irq_regs.h>
 
@@ -974,6 +975,7 @@ static void tick_nohz_stop_sched_tick(struct tick_sched *ts, int cpu)
 
 static void tick_nohz_restart_sched_tick(struct tick_sched *ts, ktime_t now)
 {
+	vrcu_idle_restart_sched_tick();
 	/* Update jiffies first */
 	tick_do_update_jiffies64(now);
 
@@ -1110,6 +1112,8 @@ void tick_nohz_idle_stop_tick(void)
 	struct tick_sched *ts = this_cpu_ptr(&tick_cpu_sched);
 	int cpu = smp_processor_id();
 	ktime_t expires;
+	long j;
+	ktime_t k;
 
 	/*
 	 * If tick_nohz_get_sleep_length() ran tick_nohz_next_event(), the
@@ -1131,6 +1135,10 @@ void tick_nohz_idle_stop_tick(void)
 
 		ts->idle_sleeps++;
 		ts->idle_expires = expires;
+
+		k = ktime_get();
+		j = nsecs_to_jiffies(ktime_to_ns(ktime_sub(ts->idle_expires, k)));
+		vrcu_debug_stop_tick(j, ts->idle_expires);
 
 		if (!was_stopped && ts->tick_stopped) {
 			ts->idle_jiffies = ts->last_jiffies;
@@ -1321,6 +1329,7 @@ void tick_nohz_idle_restart_tick(void)
 
 static void tick_nohz_idle_update_tick(struct tick_sched *ts, ktime_t now)
 {
+	vrcu_idle_update_tick();
 	if (tick_nohz_full_cpu(smp_processor_id()))
 		__tick_nohz_full_update_tick(ts, now);
 	else
@@ -1342,6 +1351,7 @@ void tick_nohz_idle_exit(void)
 	bool idle_active, tick_stopped;
 	ktime_t now;
 
+	vrcu_debug_idle_exit();
 	local_irq_disable();
 
 	WARN_ON_ONCE(!ts->inidle);
