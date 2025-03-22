@@ -26,6 +26,7 @@
 #include <linux/posix-timers.h>
 #include <linux/context_tracking.h>
 #include <linux/mm.h>
+#include <linux/vrcu.h>
 
 #include <asm/irq_regs.h>
 
@@ -42,7 +43,6 @@ struct tick_sched *tick_get_tick_sched(int cpu)
 {
 	return &per_cpu(tick_cpu_sched, cpu);
 }
-
 #if defined(CONFIG_NO_HZ_COMMON) || defined(CONFIG_HIGH_RES_TIMERS)
 /*
  * The time, when the last jiffy update happened. Write access must hold
@@ -1110,6 +1110,8 @@ void tick_nohz_idle_stop_tick(void)
 	struct tick_sched *ts = this_cpu_ptr(&tick_cpu_sched);
 	int cpu = smp_processor_id();
 	ktime_t expires;
+	long j;
+	ktime_t k;
 
 	/*
 	 * If tick_nohz_get_sleep_length() ran tick_nohz_next_event(), the
@@ -1131,6 +1133,10 @@ void tick_nohz_idle_stop_tick(void)
 
 		ts->idle_sleeps++;
 		ts->idle_expires = expires;
+
+		k = ktime_get();
+		j = nsecs_to_jiffies(ktime_to_ns(ktime_sub(ts->idle_expires, k)));
+		vrcu_debug_stop_tick(j, ts->idle_expires, k);
 
 		if (!was_stopped && ts->tick_stopped) {
 			ts->idle_jiffies = ts->last_jiffies;
