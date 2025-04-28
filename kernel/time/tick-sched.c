@@ -974,6 +974,13 @@ static void tick_nohz_stop_sched_tick(struct tick_sched *ts, int cpu)
 
 static void tick_nohz_restart_sched_tick(struct tick_sched *ts, ktime_t now)
 {
+	int printed = atomic_inc_return(&ts->printed);
+
+	if ((printed % 100) == 1) {
+		pr_err("%s(cpu=%d)\n", __func__, smp_processor_id());
+		dump_stack_lvl(KERN_ERR);
+	}
+
 	/* Update jiffies first */
 	tick_do_update_jiffies64(now);
 

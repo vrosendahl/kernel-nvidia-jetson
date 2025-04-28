@@ -98,6 +98,7 @@ struct tick_sched {
 
 	/* Clocksource changes */
 	unsigned long			check_clocks;
+	atomic_t                        printed;
 };
 
 extern struct tick_sched *tick_get_tick_sched(int cpu);
