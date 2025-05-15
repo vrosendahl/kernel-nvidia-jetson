@@ -771,6 +771,8 @@ u64 get_cpu_iowait_time_us(int cpu, u64 *last_update_time)
 }
 EXPORT_SYMBOL_GPL(get_cpu_iowait_time_us);
 
+DEFINE_PER_CPU(unsigned long, viktor_ticked);
+
 static void tick_nohz_restart(struct tick_sched *ts, ktime_t now)
 {
 	hrtimer_cancel(&ts->sched_timer);
@@ -791,6 +793,7 @@ static void tick_nohz_restart(struct tick_sched *ts, ktime_t now)
 	 * cached clock deadline.
 	 */
 	ts->next_tick = 0;
+	this_cpu_write(viktor_ticked, 0UL);
 }
 
 static inline bool local_timer_softirq_pending(void)
@@ -1100,6 +1103,11 @@ static bool can_stop_idle_tick(int cpu, struct tick_sched *ts)
 	return true;
 }
 
+static DEFINE_PER_CPU(unsigned long, stop_jfs);
+static DEFINE_PER_CPU(unsigned long, nonstop_jfs);
+static DEFINE_PER_CPU(unsigned long, stop_cnt);
+static DEFINE_PER_CPU(unsigned long, nonstop_cnt);
+
 /**
  * tick_nohz_idle_stop_tick - stop the idle tick from the idle task
  *
@@ -1110,6 +1118,29 @@ void tick_nohz_idle_stop_tick(void)
 	struct tick_sched *ts = this_cpu_ptr(&tick_cpu_sched);
 	int cpu = smp_processor_id();
 	ktime_t expires;
+	unsigned long sjfs, njfs;
+	unsigned long scnt, ncnt;
+
+	if (this_cpu_read(viktor_ticked) < 5UL) {
+		njfs = this_cpu_read(nonstop_jfs);
+		if ((jiffies - njfs) > 2500) {
+			ncnt = this_cpu_read(nonstop_cnt);
+			pr_err("viktor: refraining CPU %d (%lu skipped)\n",  smp_processor_id(), ncnt);
+			this_cpu_write(nonstop_jfs, jiffies);
+			this_cpu_write(nonstop_cnt, 0UL);
+		} else
+			this_cpu_inc(nonstop_cnt);
+		return;
+	}
+
+	sjfs = this_cpu_read(stop_jfs);
+	if ((jiffies - sjfs) > 2500) {
+		scnt = this_cpu_read(stop_cnt);
+		pr_err("viktor: stopping CPU %d (%lu skipped)\n",  smp_processor_id(), scnt);
+		this_cpu_write(stop_jfs, jiffies);
+		this_cpu_write(stop_cnt, 0UL);
+	} else
+		this_cpu_inc(stop_cnt);
 
 	/*
 	 * If tick_nohz_get_sleep_length() ran tick_nohz_next_event(), the

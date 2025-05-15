@@ -2258,6 +2258,8 @@ static void rcu_do_batch(struct rcu_data *rdp)
 	tick_dep_clear_task(current, TICK_DEP_BIT_RCU);
 }
 
+DECLARE_PER_CPU(unsigned long, viktor_ticked);
+
 /*
  * This function is invoked from each scheduling-clock interrupt,
  * and checks to see if this CPU is in a non-context-switch quiescent
@@ -2270,6 +2272,7 @@ void rcu_sched_clock_irq(int user)
 {
 	unsigned long j;
 
+	this_cpu_inc(viktor_ticked);
 	if (IS_ENABLED(CONFIG_PROVE_RCU)) {
 		j = jiffies;
 		WARN_ON_ONCE(time_before(j, __this_cpu_read(rcu_data.last_sched_clock)));
