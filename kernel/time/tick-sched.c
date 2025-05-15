@@ -1111,6 +1111,8 @@ void tick_nohz_idle_stop_tick(void)
 	int cpu = smp_processor_id();
 	ktime_t expires;
 
+	if (ts->next_tick == 0)
+		return;
 	/*
 	 * If tick_nohz_get_sleep_length() ran tick_nohz_next_event(), the
 	 * tick timer expiration time is known already.
