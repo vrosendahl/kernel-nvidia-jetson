@@ -1100,6 +1100,9 @@ static bool can_stop_idle_tick(int cpu, struct tick_sched *ts)
 	return true;
 }
 
+static DEFINE_PER_CPU(unsigned long, stop_cntr);
+static DEFINE_PER_CPU(unsigned long, nonstop_cntr);
+
 /**
  * tick_nohz_idle_stop_tick - stop the idle tick from the idle task
  *
@@ -1110,6 +1113,20 @@ void tick_nohz_idle_stop_tick(void)
 	struct tick_sched *ts = this_cpu_ptr(&tick_cpu_sched);
 	int cpu = smp_processor_id();
 	ktime_t expires;
+	unsigned long scnt, ncnt;
+
+	if (ts->next_tick == 0) {
+		ncnt = this_cpu_read(nonstop_cntr);
+		if (ncnt % 1000 == 0)
+			pr_err("viktor: refraining CPU %d\n",  smp_processor_id());
+		this_cpu_inc(nonstop_cntr);
+		return;
+	}
+
+	scnt = this_cpu_read(stop_cntr);
+	if (scnt % 500 == 0)
+		pr_err("viktor: stopping CPU %d\n",  smp_processor_id());
+	this_cpu_inc(stop_cntr);
 
 	/*
 	 * If tick_nohz_get_sleep_length() ran tick_nohz_next_event(), the
