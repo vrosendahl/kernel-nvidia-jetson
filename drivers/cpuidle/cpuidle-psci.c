@@ -25,6 +25,8 @@
 #include <linux/syscore_ops.h>
 
 #include <asm/cpuidle.h>
+#include <asm/ptrace.h>
+#include <asm/sysreg.h>
 
 #include "cpuidle-psci.h"
 #include "dt_idle_states.h"
@@ -241,6 +243,36 @@ static int psci_dt_cpu_init_topology(struct cpuidle_driver *drv,
 	return 0;
 }
 
+static void psci_prune_to_wfi_only(struct cpuidle_driver *drv)
+{
+	int keep = -1;
+	int i;
+	struct cpuidle_state saved;
+
+	/* No need to prune anything if kernel is run in EL2 mode */
+	if (read_sysreg(CurrentEL) == CurrentEL_EL2)
+		return;
+
+	for (i = 0; i < drv->state_count; i++) {
+		if (drv->states[i].enter == psci_enter_idle_state) {
+			keep = i;
+			break;
+		}
+	}
+
+	if (keep >= 0) {
+		saved = drv->states[keep];
+		memset(drv->states, 0, sizeof(struct cpuidle_state) * drv->state_count);
+		drv->states[0] = saved;
+		drv->state_count = 1;
+		pr_info("cpuidle-psci: keeping only WFI idle state (index %d) for pKVM\n", keep);
+	} else {
+		pr_warn("cpuidle-psci: no WFI idle state found; disabling cpuidle states\n");
+		drv->state_count = 0;
+	}
+}
+
+
 static int psci_dt_cpu_init_idle(struct device *dev, struct cpuidle_driver *drv,
 				 struct device_node *cpu_node,
 				 unsigned int state_count, int cpu)
@@ -264,22 +296,29 @@ static int psci_dt_cpu_init_idle(struct device *dev, struct cpuidle_driver *drv,
 		ret = psci_dt_parse_state_node(state_node, &psci_states[i]);
 		of_node_put(state_node);
 
-		if (ret)
+		if (ret) {
+			psci_prune_to_wfi_only(drv);
 			return ret;
+		}
 
 		pr_debug("psci-power-state %#x index %d\n", psci_states[i], i);
 	}
 
-	if (i != state_count)
+	if (i != state_count) {
+		psci_prune_to_wfi_only(drv);
 		return -ENODEV;
+	}
 
 	/* Initialize optional data, used for the hierarchical topology. */
 	ret = psci_dt_cpu_init_topology(drv, data, state_count, cpu);
-	if (ret < 0)
+	if (ret < 0) {
+		psci_prune_to_wfi_only(drv);
 		return ret;
+	}
 
 	/* Idle states parsed correctly, store them in the per-cpu struct. */
 	data->psci_states = psci_states;
+	psci_prune_to_wfi_only(drv);
 	return 0;
 }
 
