@@ -1459,6 +1459,18 @@
 			very early in the boot process. For early debugging
 			via a serial port see kgdboc_earlycon instead.
 
+	el1_only_wfi=	[ARM64,PSCI]
+			Disable all PSCI idle states except WFI (Wait For
+			Interrupt) when the kernel is running in EL1 mode
+			(e.g. under pKVM). This avoids entering
+			PSCI_CPU_SUSPEND states, which are known to cause
+			problems on some platforms due to firmware not fully
+			supporting suspend from EL1.
+
+			This option is enabled by default on Nvidia Tegra
+			platforms, such as Orin AGX. Set el1_only_wfi=0 to
+			disable the pruning and allow deeper PSCI idle states.
+
 	elanfreq=	[X86-32]
 			See comment before function elanfreq_setup() in
 			arch/x86/kernel/cpu/cpufreq/elanfreq.c.
