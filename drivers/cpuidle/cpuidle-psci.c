@@ -15,6 +15,7 @@
 #include <linux/cpu_pm.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/psci.h>
@@ -25,6 +26,8 @@
 #include <linux/syscore_ops.h>
 
 #include <asm/cpuidle.h>
+#include <asm/ptrace.h>
+#include <asm/sysreg.h>
 
 #include "cpuidle-psci.h"
 #include "dt_idle_states.h"
@@ -33,6 +36,14 @@ struct psci_cpuidle_data {
 	u32 *psci_states;
 	struct device *dev;
 };
+
+/*
+ * Tegra is a known bad platform with a firmware that doesn't support entering
+ * deeper idle states when the kernel is run in EL1 mode.
+ */
+static bool el1_force_only_wfi = IS_ENABLED(CONFIG_ARCH_TEGRA);
+
+module_param_named(el1_only_wfi, el1_force_only_wfi, bool, 0444);
 
 static DEFINE_PER_CPU_READ_MOSTLY(struct psci_cpuidle_data, psci_cpuidle_data);
 static DEFINE_PER_CPU(u32, domain_state);
@@ -241,6 +252,43 @@ static int psci_dt_cpu_init_topology(struct cpuidle_driver *drv,
 	return 0;
 }
 
+static void psci_prune_to_wfi_only(struct cpuidle_driver *drv,
+				   int cpu)
+{
+	int keep = -1;
+	int i;
+	struct cpuidle_state saved;
+	int orig_count = drv->state_count;
+
+	/*
+	 * No need to prune anything if kernel is run in EL2 mode, or if we are
+	 * on a platform that doesn't need it.
+	 */
+	if (!el1_force_only_wfi || read_sysreg(CurrentEL) == CurrentEL_EL2)
+		return;
+
+	for (i = 0; i < drv->state_count; i++) {
+		if (drv->states[i].enter == psci_enter_idle_state) {
+			keep = i;
+			break;
+		}
+	}
+
+	if (keep >= 0) {
+		saved = drv->states[keep];
+		memset(drv->states, 0, sizeof(struct cpuidle_state) * drv->state_count);
+		drv->states[0] = saved;
+		drv->state_count = 1;
+		pr_info("%s: CPU %d pruned %d idle states; retaining only WFI (index %d) — running at EL1\n",
+			drv->name, cpu, orig_count - 1, keep);
+	} else {
+		pr_warn("%s: CPU %d had %d idle states, but no WFI; disabling all - running at EL1\n",
+			drv->name, cpu, orig_count);
+		drv->state_count = 0;
+	}
+}
+
+
 static int psci_dt_cpu_init_idle(struct device *dev, struct cpuidle_driver *drv,
 				 struct device_node *cpu_node,
 				 unsigned int state_count, int cpu)
@@ -264,22 +312,29 @@ static int psci_dt_cpu_init_idle(struct device *dev, struct cpuidle_driver *drv,
 		ret = psci_dt_parse_state_node(state_node, &psci_states[i]);
 		of_node_put(state_node);
 
-		if (ret)
+		if (ret) {
+			psci_prune_to_wfi_only(drv, cpu);
 			return ret;
+		}
 
 		pr_debug("psci-power-state %#x index %d\n", psci_states[i], i);
 	}
 
-	if (i != state_count)
+	if (i != state_count) {
+		psci_prune_to_wfi_only(drv, cpu);
 		return -ENODEV;
+	}
 
 	/* Initialize optional data, used for the hierarchical topology. */
 	ret = psci_dt_cpu_init_topology(drv, data, state_count, cpu);
-	if (ret < 0)
+	if (ret < 0) {
+		psci_prune_to_wfi_only(drv, cpu);
 		return ret;
+	}
 
 	/* Idle states parsed correctly, store them in the per-cpu struct. */
 	data->psci_states = psci_states;
+	psci_prune_to_wfi_only(drv, cpu);
 	return 0;
 }
 
