@@ -48,6 +48,12 @@ MODULE_PARM_DESC(el1_only_wfi,
 	"Disable non-WFI PSCI idle states when running in EL1 (e.g. pKVM). "
 	"Enabled by default on Tegra; set to 0 to allow PSCI suspend.");
 
+static int __init parse_el1_only_wfi_param(char *str)
+{
+	return kstrtobool(str, &el1_force_only_wfi);
+}
+early_param("el1_only_wfi", parse_el1_only_wfi_param);
+
 static DEFINE_PER_CPU_READ_MOSTLY(struct psci_cpuidle_data, psci_cpuidle_data);
 static DEFINE_PER_CPU(u32, domain_state);
 static bool psci_cpuidle_use_cpuhp;
